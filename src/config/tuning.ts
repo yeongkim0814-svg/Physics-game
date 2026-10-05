@@ -8,6 +8,7 @@ export const TUNING = {
     groundFriction: 12, // 지상 입력 없을 때 감속
     airAccel: 6,       // 공중 조작력. 낮을수록 반동으로 얻은 운동량이 보존됨
     mouseSensitivity: 0.0022,
+    stepHeight: 0.5, stepProbe: 0.3, // 계단 오르기: 한계 높이(m) / 단 모서리를 넘는지 보려고 앞으로 탐색하는 거리(m)
     // 반동을 받으면 일정 시간 지면 마찰/입력 가속을 약화 → 지상에서도 반동 가속이 이어짐
     recoilSlideTime: 0.45, slideFrictionMul: 0.08,
     chargeSlowMul: 0.35, // 코일 충전 중 이동속도 배율

@@ -38,7 +38,6 @@ export class PlayerController implements ImpulseTarget {
     this.controller = world.createCharacterController(0.01);
     this.controller.setUp({ x: 0, y: 1, z: 0 });
     this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
-    this.controller.enableAutostep(0.4, 0.2, false);
   }
 
   get mass() { return P.mass; }
@@ -48,6 +47,40 @@ export class PlayerController implements ImpulseTarget {
     this.velocity.addScaledVector(impulse, 1 / P.mass);
     if (impulse.y > 0) this.grounded = false; // 위로 쏘아 올려지면 즉시 공중 처리
     this.slideTimer = P.recoilSlideTime;
+  }
+
+  /**
+   * 계단 오르기. Rapier 내장 autostep 은 이 캡슐/계단 조합에서 동작하지 않아 직접 구현:
+   * 수평 이동이 막히면 단차 높이만큼 띄워서 앞으로 갈 수 있는지 보고, 갈 수 있으면 올라선 뒤 바닥에 다시 붙인다.
+   */
+  private tryStepUp(
+    t: { x: number; y: number; z: number },
+    desired: { x: number; y: number; z: number },
+    m: { x: number; y: number; z: number },
+  ) {
+    const want = Math.hypot(desired.x, desired.z);
+    const got = Math.hypot(m.x, m.z);
+    if (want < 1e-4 || got > want * 0.5) return m;
+
+    // 이번 프레임 이동량만으론 캡슐이 단 모서리에 닿지 못하므로, 더 앞(stepProbe)까지 띄워서 가보고 올라설 높이를 구한다
+    const up = P.stepHeight;
+    const probe = Math.max(want, P.stepProbe);
+    const k = probe / want;
+    this.collider.setTranslation({ x: t.x, y: t.y + up, z: t.z });
+    this.controller.computeColliderMovement(this.collider, { x: desired.x * k, y: 0, z: desired.z * k });
+    const fwd = { ...this.controller.computedMovement() };
+    let result: typeof m | null = null;
+    if (Math.hypot(fwd.x, fwd.z) >= probe * 0.9) {
+      this.collider.setTranslation({ x: t.x + fwd.x, y: t.y + up, z: t.z + fwd.z });
+      this.controller.computeColliderMovement(this.collider, { x: 0, y: -(up + 0.02), z: 0 });
+      const dy = up + this.controller.computedMovement().y;
+      // 올라설 높이가 있고(>0.02) 착지 가능하면, 이번 프레임에는 올라서면서 이동량만큼만 전진
+      if (dy > 0.02 && this.controller.computedGrounded()) result = { x: desired.x, y: dy, z: desired.z };
+    }
+    // 원래 위치로 복구하고 grounded 상태가 원래 이동 기준이 되도록 재계산
+    this.collider.setTranslation(t);
+    this.controller.computeColliderMovement(this.collider, desired);
+    return result ?? { ...this.controller.computedMovement() };
   }
 
   /** 발 위치로 순간이동 (리스폰/스폰용). 속도 초기화 */
@@ -128,9 +161,10 @@ export class PlayerController implements ImpulseTarget {
 
     // 충돌 해소 이동
     const desired = { x: this.velocity.x * dt, y: this.velocity.y * dt, z: this.velocity.z * dt };
-    this.controller.computeColliderMovement(this.collider, desired);
-    const m = this.controller.computedMovement();
     const t = this.body.translation();
+    this.controller.computeColliderMovement(this.collider, desired);
+    let m = { ...this.controller.computedMovement() };
+    if (this.grounded) m = this.tryStepUp(t, desired, m);
     this.body.setNextKinematicTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
     this.collider.setTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
 

@@ -53,7 +53,7 @@ export function floorTexture() {
     }
     // 타일 그리드: 그레인 라인
     const step = n / 4;
-    g.strokeStyle = `rgb(${hexToRgb(COL.grout).r},${hexToRgb(COL.grout).g},${hexToRgb(COL.grout).b})`;
+    g.strokeStyle = `rgba(${hexToRgb(COL.grout).r},${hexToRgb(COL.grout).g},${hexToRgb(COL.grout).b},0.45)`; // 원경 모아레를 줄이려 줄눈을 옅게
     g.lineWidth = 1;
     for (let i = step; i < n; i += step) {
       g.strokeRect(0, i - 0.5, n, 1);
@@ -133,6 +133,25 @@ export function metalTexture() {
       g.moveTo(i, 0);
       g.lineTo(Math.min(n, i + Math.floor(r() * n * 0.4)), n);
       g.stroke();
+    }
+  });
+}
+
+export function waterTexture() {
+  return mkTexture('water', (g, r) => {
+    const n = VISUAL.textureSize;
+    const base = hexToRgb(COL.oliveDark);
+    g.fillStyle = `rgb(${base.r},${base.g},${base.b})`;
+    g.fillRect(0, 0, n, n);
+    // 잔물결: 청록 가로줄 (전도체 = cyan)
+    const c = hexToRgb(COL.cyan);
+    for (let y = 1; y < n; y += 4) {
+      g.fillStyle = `rgba(${c.r},${c.g},${c.b},0.55)`;
+      for (let x = 0; x < n; x++) g.fillRect(x, y + Math.round(Math.sin(x * 0.8 + y) * 1), 1, 1);
+    }
+    for (let i = 0; i < n; i++) { // 반짝임
+      g.fillStyle = `rgba(${c.r},${c.g},${c.b},0.9)`;
+      g.fillRect(Math.floor(r() * n), Math.floor(r() * n), 1, 1);
     }
   });
 }

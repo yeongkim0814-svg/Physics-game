@@ -5,7 +5,7 @@ export const VISUAL = {
   /** 내부 렌더 해상도(세로). 가로는 화면 비율로 결정 (270 → 16:9 에서 480×270). 낮출수록 거칠고 빠르다 */
   internalHeight: 270,
   minInternalHeight: 160,
-  camera: { near: 0.1, far: 120 },
+  camera: { near: 0.1, far: 160 },
   /** 정점 스냅: 정점을 내부 픽셀 격자(snapPixels 배수)에 맞춰 PS1 특유의 떨림 */
   vertexSnap: true,
   snapPixels: 1,
