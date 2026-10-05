@@ -67,10 +67,17 @@ export interface ImpulseTarget {
   applyImpulse(impulse: THREE.Vector3): void;
 }
 
-/** 영속 데이터 — 레이드 간 유지되는 것 */
+/** 보관/소지 중인 무기: 장착 구성 + 내구도 (레이드 간 유지) */
+export interface StoredWeapon {
+  loadout: Loadout;
+  baseDurability: number;
+  partDurability: Record<string, number>;
+}
+
+/** 영속 데이터. stash=안전 보관함(사망해도 유지), carried=소지품(레이드 중에만 존재, 사망 시 손실) */
 export interface Persistent {
-  stash: { weapons: Loadout[]; materials: Record<string, number> }; // 안전 보관함(사망해도 유지)
-  carried: { weapons: Loadout[]; materials: Record<string, number> }; // 소지품(사망 시 손실)
+  stash: { weapons: StoredWeapon[]; materials: Record<string, number> };
+  carried: { weapons: StoredWeapon[]; materials: Record<string, number> };
 }
 
 export type RaidResult = 'extracted' | 'dead';

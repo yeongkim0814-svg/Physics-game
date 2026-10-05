@@ -27,9 +27,11 @@ function mkTexture(name: string, fn: (c: CanvasRenderingContext2D, r: () => numb
   const r = rng([...name].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7));
   fn(g, r);
   const tex = new THREE.CanvasTexture(canvas);
+  // 가까이(확대)는 nearest 로 픽셀 느낌 유지, 멀리(축소)는 밉맵으로 평균내 번쩍임/모아레 제거
   tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   cache.set(name, tex);
   return tex;

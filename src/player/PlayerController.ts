@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RAPIER } from '../core/physics';
 import { moveCharacter } from '../core/characterMotor';
 import { fallDamage } from './damage';
-import type { Input } from '../core/input';
+import type { PlayerInput } from '../core/input';
 import type { Damageable, DamageSource, ImpulseTarget } from '../core/types';
 import { TUNING } from '../config/tuning';
 
@@ -30,6 +30,8 @@ export class PlayerController implements ImpulseTarget, Damageable {
   speedMul = 1;
   /** 반동을 받은 뒤 남은 미끄러짐 시간 (지면 마찰 약화) */
   private slideTimer = 0;
+  /** 계단을 오를 때 카메라가 한 단씩 튀지 않게 하는 시각 오프셋(<=0). 실제 눈 위치(조준/사격)에는 영향 없음 */
+  private eyeLag = 0;
 
   readonly body: RAPIER.RigidBody;
   private collider: RAPIER.Collider;
@@ -86,7 +88,7 @@ export class PlayerController implements ImpulseTarget, Damageable {
     return out.copy(this.position).setY(this.position.y + P.eyeHeight);
   }
 
-  update(dt: number, input: Input) {
+  update(dt: number, input: PlayerInput) {
     // 시점
     this.yaw -= input.lookDX * P.mouseSensitivity;
     this.pitch = THREE.MathUtils.clamp(this.pitch - input.lookDY * P.mouseSensitivity, -1.5, 1.5);
@@ -151,6 +153,8 @@ export class PlayerController implements ImpulseTarget, Damageable {
     if (Math.abs(m.x - desired.x) > 1e-4) this.velocity.x = m.x / dt;
     if (Math.abs(m.z - desired.z) > 1e-4) this.velocity.z = m.z / dt;
     const wasGrounded = this.grounded;
+    // 계단 오르기(지면에서 위로 올라선 이동): 물리 위치는 즉시 올라가지만 카메라는 부드럽게 따라온다
+    if (wasGrounded && m.y > 0.03 && this.velocity.y <= 0.5) this.eyeLag = Math.max(this.eyeLag - m.y, -P.stepHeight * 1.5);
     const hitFloor = desired.y < 0 && m.y > desired.y + 1e-4;
     const hitCeil = desired.y > 0 && m.y < desired.y - 1e-4;
     this.landingSpeed = 0;
@@ -166,7 +170,9 @@ export class PlayerController implements ImpulseTarget, Damageable {
     if (this.landingSpeed > 0) this.takeDamage(fallDamage(this.landingSpeed, P.fallSafeSpeed, P.fallDamagePerSpeed), 'fall');
 
     this.position.set(t.x + m.x, t.y + m.y - P.height / 2, t.z + m.z);
+    this.eyeLag *= Math.exp(-P.stepSmoothing * dt);
     this.eyePosition(this.camera.position);
+    this.camera.position.y += this.eyeLag;
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
   }
 }

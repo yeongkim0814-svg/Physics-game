@@ -8,6 +8,7 @@ export const TUNING = {
     groundFriction: 12, // 지상 입력 없을 때 감속
     airAccel: 6,       // 공중 조작력. 낮을수록 반동으로 얻은 운동량이 보존됨
     mouseSensitivity: 0.0022,
+    stepSmoothing: 10, // 계단 오를 때 카메라가 따라오는 속도 (클수록 빠름, 초당 지수 감쇠)
     stepHeight: 0.5, stepProbe: 0.3, // 계단 오르기: 한계 높이(m) / 단 모서리를 넘는지 보려고 앞으로 탐색하는 거리(m)
     // 반동을 받으면 일정 시간 지면 마찰/입력 가속을 약화 → 지상에서도 반동 가속이 이어짐
     recoilSlideTime: 0.45, slideFrictionMul: 0.08,
@@ -43,6 +44,14 @@ export const TUNING = {
     insulatorDamageMul: 0.25, // 절연 몹 전기 피해 배율 (data/mobs.ts 가 사용)
     leakDamageMul: 1,      // 누전(자기 피해) 배율 — 절연 피복이 줄인다
     waterLeakDps: 15,      // 물웅덩이 위에서 충전 중일 때 초당 누전 피해 (충전량에 비례)
+  },
+  raid: {
+    // 레이드 시작 시 보관함에서 가져가는 재료 키트 (보관함에 있는 만큼만)
+    kit: { slag: 15, scrap: 15, ingot: 2 },
+    // 키트 합계가 이보다 적으면 보급품으로 채움 (재료를 다 잃고 진행 불능이 되는 것 방지)
+    minKitTotal: 10, rationMaterial: 'scrap',
+    extractHold: 1.0,   // 탈출 지점 안에서 버텨야 하는 시간 (s). 0 이면 도달 즉시 성공
+    extractDecay: 2.0,  // 지점을 벗어났을 때 진행도가 줄어드는 배율
   },
   mobs: {
     radius: 0.4, height: 1.6,

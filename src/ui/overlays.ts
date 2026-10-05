@@ -4,7 +4,7 @@ const BTN = 'position:fixed;z-index:20;padding:6px 10px;font:bold 12px monospace
   'background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.4);touch-action:manipulation;user-select:none';
 
 /** 전체화면/FPS 토글 버튼, FPS 표시, 세로 화면 회전 안내 */
-export function createOverlays(root: HTMLElement, isTouch: () => boolean) {
+export function createOverlays(root: HTMLElement, isTouch: () => boolean, onSwitchWeapon: () => void) {
   const mk = (css: string, text: string) => {
     const d = document.createElement('div');
     d.style.cssText = css;
@@ -24,15 +24,9 @@ export function createOverlays(root: HTMLElement, isTouch: () => boolean) {
     } catch { /* 지원 안 함/거부: 무시 */ }
   });
 
-  // 임시 무기 전환(장착 메뉴는 T9): URL 의 base 를 바꿔 다시 불러온다
+  // 무기 전환 (소지한 무기를 순환). 장착 메뉴는 T9
   const wpn = mk(`${BTN};top:8px;right:136px`, 'WPN');
-  wpn.addEventListener('click', () => {
-    const u = new URL(location.href);
-    const next = u.searchParams.get('base') === 'em_coil' ? 'momentum_launcher' : 'em_coil';
-    for (const k of ['front', 'rear', 'top']) u.searchParams.delete(k);
-    u.searchParams.set('base', next);
-    location.href = u.toString();
-  });
+  wpn.addEventListener('click', onSwitchWeapon);
 
   let showFps: boolean = PERF.showFps;
   const fpsBtn = mk(`${BTN};top:8px;right:72px`, 'FPS');

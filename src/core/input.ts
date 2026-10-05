@@ -1,5 +1,15 @@
 import { TouchControls, lockBrowserGestures } from './touch';
 
+/** 플레이어 이동에 필요한 최소 입력. 레이드가 끝난 뒤에는 IDLE_INPUT 으로 조작을 막는다 */
+export interface PlayerInput {
+  readonly moveX: number;
+  readonly moveY: number;
+  readonly lookDX: number;
+  readonly lookDY: number;
+  readonly jumpPressed: boolean;
+}
+export const IDLE_INPUT: PlayerInput = { moveX: 0, moveY: 0, lookDX: 0, lookDY: 0, jumpPressed: false };
+
 /**
  * 통합 입력. 데스크톱(WASD + 마우스 PointerLock)과 터치를 합쳐 같은 폴링 API 로 제공한다.
  * 게임 코드는 키/터치를 직접 보지 말고 moveX/moveY, lookDX/DY, fire*, jumpPressed, interactPressed 만 쓴다.
