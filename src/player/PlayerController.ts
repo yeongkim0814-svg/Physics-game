@@ -102,7 +102,9 @@ export class PlayerController implements ImpulseTarget, Damageable {
       -Math.cos(this.yaw) * f - Math.sin(this.yaw) * r,
     );
     if (wish.lengthSq() > 1) wish.normalize();
-    wish.multiplyScalar(P.moveSpeed * this.speedMul);
+    // 전력질주: 전진 입력일 때만. 충전 등으로 이동이 느려진 상태(speedMul<1)에서는 겹쳐 적용하지 않는다
+    const sprinting = input.sprint && f > 0.1 && this.speedMul >= 1;
+    wish.multiplyScalar(P.moveSpeed * this.speedMul * (sprinting ? P.sprintMul : 1));
     const hasInput = wish.lengthSq() > 1e-6;
 
     const hv = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);

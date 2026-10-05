@@ -2,7 +2,7 @@
 export const TUNING = {
   world: { gravity: 20 }, // 점프감을 위해 9.8 보다 크게
   player: {
-    mass: 70, moveSpeed: 6, jumpSpeed: 7, maxHp: 100,
+    mass: 70, moveSpeed: 6, sprintMul: 1.5, jumpSpeed: 7, maxHp: 100, // sprintMul: 전력질주 속도 배율(전진 입력일 때만)
     radius: 0.35, height: 1.8, eyeHeight: 1.6,
     groundAccel: 60,   // 지상: 목표속도로 수렴하는 가속도 (m/s^2)
     groundFriction: 12, // 지상 입력 없을 때 감속
