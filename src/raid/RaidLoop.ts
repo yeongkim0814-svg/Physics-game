@@ -9,6 +9,8 @@ import { VISUAL, PERF } from '../config/settings';
 import { TUNING } from '../config/tuning';
 import { createOverlays } from '../ui/overlays';
 import { showEndScreen } from '../ui/EndScreen';
+import { showSelectScreen } from '../ui/SelectScreen';
+// import { makeHudText, makeLootText } from '../ui/hud'; // T9 에서 사용
 import { Inventory } from './inventory';
 import {
   SAVE_KEY, beginRaid, diffMaterials, loadPersistent, repairWeapons, serialize,
@@ -22,8 +24,8 @@ import type { Weapon } from '../weapons/Weapon';
 import { Projectiles } from '../weapons/Projectiles';
 import { ViewModel } from '../weapons/ViewModel';
 import { createWeaponState, computeStats } from '../data/loadout';
-import { loadoutFromUrl } from '../data/startState';
 import { BASES } from '../data/bases';
+import { loadoutFromUrl } from '../data/startState';
 import { PARTS } from '../data/parts';
 import type { Persistent } from '../core/types';
 
@@ -34,6 +36,15 @@ const storage = {
 };
 
 export async function startRaid(root: HTMLElement) {
+  // 장착 메뉴 (메뉴를 선택해야 내용 진행, 콜백이 없으면 버튼 클릭 안 함)
+  let menuDone = false;
+  let initialLoadout = loadoutFromUrl(location.search);
+  showSelectScreen(root, {
+    start: (loadout) => { initialLoadout = loadout; menuDone = true; },
+  });
+  while (!menuDone) await new Promise((r) => setTimeout(r, 100));
+  root.innerHTML = ''; // 메뉴 지우기
+
   const world = await createPhysics();
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
   const gfx = new RetroPipeline(renderer);
@@ -62,13 +73,12 @@ export async function startRaid(root: HTMLElement) {
   // --- 영속 데이터: 보관함 → 소지품 (무기 전부 + 재료 키트). 레이드 중 창을 닫으면 다음 로드 때 사망 처리 ---
   let persistent = beginRaid(loadPersistent(storage.get()));
   // 개발용: URL 의 부품 파라미터(?base=&front=&rear=&top=)로 해당 베이스 무기를 새 구성(풀 내구도)으로 교체. 정식 메뉴는 T9
-  const q = new URLSearchParams(location.search);
-  if (['front', 'rear', 'top'].some((k) => q.get(k))) {
-    const lo = loadoutFromUrl(location.search);
-    const i = persistent.carried.weapons.findIndex((w) => w.loadout.base === lo.base);
-    if (i >= 0) persistent.carried.weapons[i] = toStored(createWeaponState(lo));
-  }
+  // initialLoadout 으로 해당 베이스 무기를 새 구성(풀 내구도)으로 교체
+  const i = persistent.carried.weapons.findIndex((w) => w.loadout.base === initialLoadout.base);
+  if (i >= 0) persistent.carried.weapons[i] = toStored(createWeaponState(initialLoadout));
   storage.set(persistent);
+  // 선택한 베이스로 초기 무기 설정
+  const startBase = initialLoadout.base;
   const startMaterials = { ...persistent.carried.materials };
   const startedAt = performance.now();
 
@@ -91,25 +101,15 @@ export async function startRaid(root: HTMLElement) {
     })
     : new MomentumLauncher(states[i], player, projectiles, view, inventory);
   const weapons = states.map((_, i) => makeWeapon(i));
-  const startBase = q.get('base');
+
   let cur = Math.max(0, states.findIndex((s) => s.loadout.base === startBase));
   let weapon = weapons[cur];
-
-  function switchWeapon() {
-    if (phase !== 'raid') return;
-    weapon.state.charge = 0; // 충전 중이었다면 취소
-    player.speedMul = 1;
-    view.setGlow(0);
-    cur = (cur + 1) % weapons.length;
-    weapon = weapons[cur];
-    if (import.meta.env.DEV) (window as any).__game.weapon = weapon;
-  }
 
   const input = new Input(renderer.domElement, root);
   if (import.meta.env.DEV) {
     (window as any).__game = { player, gfx, input, world, weapon, inventory, projectiles, gameWorld, mobs, arcs, scene, camera, states, get persistent() { return persistent; } };
   }
-  const overlays = createOverlays(root, () => input.touch.enabled, switchWeapon);
+  const overlays = createOverlays(root, () => input.touch.enabled);
 
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:5;color:#7fbf6a;font:12px monospace;white-space:pre;pointer-events:none';
