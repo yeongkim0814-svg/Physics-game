@@ -58,9 +58,9 @@ export class Projectiles {
       const hit = this.world.castRay(ray, len, true, undefined, undefined, undefined, this.excludeBody);
       if (hit) toi = hit.timeOfImpact;
       for (const t of this.targets()) {
-        if (!t.radius) continue;
+        if (!t.hitRadius) continue;
         const h = segmentSphereToi([pos.x, pos.y, pos.z], [dir.x, dir.y, dir.z], len,
-          [t.position.x, t.position.y, t.position.z], t.radius);
+          [t.position.x, t.position.y, t.position.z], t.hitRadius);
         if (h !== null && h < toi) { toi = h; target = t; }
       }
 

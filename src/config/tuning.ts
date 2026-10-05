@@ -8,6 +8,7 @@ export const TUNING = {
     groundFriction: 12, // 지상 입력 없을 때 감속
     airAccel: 6,       // 공중 조작력. 낮을수록 반동으로 얻은 운동량이 보존됨
     mouseSensitivity: 0.0022,
+    stepHeight: 0.5, stepProbe: 0.3, // 계단 오르기: 한계 높이(m) / 단 모서리를 넘는지 보려고 앞으로 탐색하는 거리(m)
     // 반동을 받으면 일정 시간 지면 마찰/입력 가속을 약화 → 지상에서도 반동 가속이 이어짐
     recoilSlideTime: 0.45, slideFrictionMul: 0.08,
     chargeSlowMul: 0.35, // 코일 충전 중 이동속도 배율
@@ -24,7 +25,7 @@ export const TUNING = {
     wearPerRecoil: 0.004,  // 후방 슬롯 마모 = 반동 임펄스 * 이 값 * 부품 wearRate
     projectileGravity: 12, // 투사체 중력 (m/s^2) — 플레이어 중력보다 낮아 탄도가 완만
     projectileLife: 4,     // 투사체 수명 (s)
-    damagePerJoule: 0.03,  // 물리 피해 = 0.5·m·v² · 이 값
+    damagePerJoule: 0.02,  // 물리 피해 = 0.5·m·v² · 이 값
     spread: { base: 0.01, perShot: 0.02, recover: 0.12, max: 0.25 }, // rad. 연사하면 퍼짐이 쌓임
     cameraKick: 0.018,     // 발사 시 시점 위로 튐 (rad)
     muzzleOffset: 0.6,     // 총구 위치 (눈에서 조준 방향으로 m)
@@ -38,5 +39,20 @@ export const TUNING = {
     waterLeakDps: 15, // 물웅덩이 위 서 있을 때 누전
     wearOvercharge: 8, // 전방 슬롯 과충전 마모
   },
-  mobs: { speed: 3, meleeDamage: 8, meleeRange: 1.6, meleeCooldown: 1, hp: 40, metalElectricMul: 2.0, insulatorPhysicalMul: 2.0 },
+  mobs: {
+    radius: 0.4, height: 1.6,
+    hitRadius: 0.8,        // 투사체/빔 판정 구 반경 (몸통 중심). 캡슐 반경보다 커야 투사체가 먼저 맞는다
+    aggroRange: 28, loseRange: 50, // 추적 시작/포기 거리
+    stopDistance: 1.3,     // 이 거리 안에서는 더 다가가지 않음
+    meleeReach: 1.7,       // 근접 공격 사거리 (중심 간 수평 거리)
+    windup: 0.35, meleeCooldown: 1.0, // 예고 동작 시간(이 동안 벗어나면 헛스윙) / 공격 후 쿨다운
+    separation: 1.2, turnSpeed: 10,
+    // 종류별 능력치: 금속은 튼튼하고 느림, 절연은 빠르고 약함
+    kinds: {
+      metal:     { hp: 60, speed: 2.6, damage: 10 },
+      insulator: { hp: 40, speed: 3.6, damage: 8 },
+      normal:    { hp: 50, speed: 3.0, damage: 9 },
+    },
+    metalElectricMul: 2.0, insulatorPhysicalMul: 2.0, // 약점 배율
+  },
 } as const;

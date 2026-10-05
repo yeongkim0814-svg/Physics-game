@@ -1,11 +1,12 @@
 import * as THREE from 'three';
-import { createPhysics, addStaticBox } from '../core/physics';
+import { createPhysics } from '../core/physics';
 import { Input } from '../core/input';
 import { PlayerController } from '../player/PlayerController';
 import { RetroPipeline } from '../render/retro';
-import { lambert, COL, CUES } from '../render/palette';
-import { createBoxGeometryWithUV } from '../render/boxGeometry';
+import { GameWorld } from '../world/GameWorld';
+import { MobManager } from '../mobs/MobManager';
 import { VISUAL, PERF } from '../config/settings';
+import { TUNING } from '../config/tuning';
 import { createOverlays } from '../ui/overlays';
 import { Inventory } from './inventory';
 import { MomentumLauncher } from '../weapons/MomentumLauncher';
@@ -39,42 +40,19 @@ export async function startRaid(root: HTMLElement) {
     camera.updateProjectionMatrix();
   });
 
-  const box = (c: [number, number, number], s: [number, number, number], col: number, collide = true) => {
-    if (collide) addStaticBox(world, c, s);
-    const geo = createBoxGeometryWithUV(...s);
-    const m = new THREE.Mesh(geo, lambert(col));
-    m.position.set(...c);
-    scene.add(m);
-    return m;
-  };
-  box([0, -0.5, 0], [200, 1, 200], COL.floorTile);
-  box([8, 0.75, -10], [4, 1.5, 4], COL.oliveMid);
-  box([-8, 1.5, -14], [6, 3, 6], COL.oliveMid);
-  box([0, 4, -30], [12, 8, 12], COL.oliveMid);
-  for (let i = 0; i < 5; i++) box([-6 + i * 3, 0.2 * (i + 1), -4], [3, 0.4 * (i + 1), 1], COL.oliveDark);
+  const gameWorld = new GameWorld(scene, world);
 
-  // 가독성 표시: 금속 구조물, 물웅덩이, 탈출 지점
-  const metalBox = new THREE.Mesh(createBoxGeometryWithUV(3, 3, 3), lambert(COL.steelDark, { emissive: CUES.conductor }));
-  metalBox.position.set(16, 1.5, -8);
-  scene.add(metalBox);
-
-  const water = new THREE.Mesh(createBoxGeometryWithUV(14, 0.06, 14), lambert(COL.grout, { emissive: CUES.conductor, fog: false }));
-  water.position.set(-16, 0.03, 8);
-  scene.add(water);
-
-  const exit = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 14, 6), lambert(COL.oliveDark, { emissive: CUES.exit, fog: false }));
-  exit.position.set(0, 7, -60);
-  scene.add(exit);
-
-  const player = new PlayerController(world, camera, new THREE.Vector3(0, 1, 6));
+  const player = new PlayerController(world, camera, gameWorld.spawn.clone());
   scene.add(camera); // 뷰모델이 카메라 자식이므로 씬에 포함
 
   // 무기: 개발 중에는 URL 파라미터로 장착 상태 선택 (?base=&front=&rear=&top=). 메뉴는 T9
   const inventory = new Inventory({ ...START_MATERIALS });
-  const projectiles = new Projectiles(scene, world, player.body);
+  let mobs: MobManager;
+  const projectiles = new Projectiles(scene, world, player.body, () => mobs.targets());
+  mobs = new MobManager(scene, world, gameWorld.loot, gameWorld.mobSpawns, PERF.mobCap);
   const weaponState = createWeaponState(loadoutFromUrl(location.search));
   const launcher = new MomentumLauncher(weaponState, player, projectiles, new ViewModel(camera), inventory);
-  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world, launcher, inventory, projectiles };
+  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world, launcher, inventory, projectiles, gameWorld, mobs };
 
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:5;color:#7fbf6a;font:12px monospace;white-space:pre;pointer-events:none';
@@ -86,6 +64,24 @@ export async function startRaid(root: HTMLElement) {
   const overlays = createOverlays(root, () => input.touch.enabled);
   let last = performance.now(), frames = 0, accum = 0, cooldown = 3;
 
+  // 피격 연출(임시): 붉은 화면 번쩍임. 정식 HUD 는 T9
+  const hitFlash = document.createElement('div');
+  hitFlash.style.cssText = 'position:fixed;inset:0;z-index:4;pointer-events:none;background:#c0452e;opacity:0';
+  root.appendChild(hitFlash);
+
+  function exitHud() {
+    const e = gameWorld.extraction;
+    const dx = e.position.x - player.position.x, dz = e.position.z - player.position.z;
+    // 시점 기준 상대 방위 (0 = 정면). yaw 는 -z 방향이 0 이고 왼쪽(+)으로 회전
+    const rel = Math.atan2(-dx, -dz) - player.yaw;
+    const k = ((Math.round(rel / (Math.PI / 4)) % 8) + 8) % 8;
+    const arrow = ['↑', '↖', '←', '↙', '↓', '↘', '→', '↗'][k];
+    const water = gameWorld.isInWater(player.position.x, player.position.z) ? '  [물 위: 누전 위험]' : '';
+    return e.contains(player.position)
+      ? 'EXIT 도달! (결과 처리는 T8)'
+      : `EXIT ${arrow} ${Math.hypot(dx, dz).toFixed(0)}m${water}`;
+  }
+
   function weaponHud() {
     const ws = launcher.state;
     const { stats, inactiveParts } = computeStats(ws);
@@ -94,11 +90,14 @@ export async function startRaid(root: HTMLElement) {
     for (const id of Object.keys(ws.partDurability)) {
       dur.push(`${PARTS[id].name} ${Math.ceil(ws.partDurability[id])}${inactiveParts.includes(id) ? '(정지)' : ''}`);
     }
+    hitFlash.style.opacity = String(Math.max(0, 0.45 - (performance.now() / 1000 - player.lastHitAt)) * 1.2);
     return [
+      `HP ${Math.ceil(player.hp)}/${TUNING.player.maxHp}${player.dead ? '  DEAD (결과 처리는 T8)' : ''}   몹 ${mobs.alive.length}/${mobs.mobs.length}  처치 ${mobs.kills}`,
       `speed ${player.velocity.length().toFixed(1)} m/s  ${player.grounded ? 'ground' : 'air'}  ${gfx.width}x${gfx.height}`,
       `재료 ${mat.name} (${mat.mass}kg) x${inventory.count()}  [${Object.entries(inventory.materials).map(([k, v]) => `${k}:${v}`).join(' ')}]`,
       `내구도 ${dur.join(' | ')}`,
       `퍼짐 ${(launcher.spread * 57.3).toFixed(1)}deg  반동 Δv ${launcher.lastDeltaV.toFixed(1)} m/s  v0 ${stats.projectileSpeed.toFixed(0)}`,
+      exitHud(),
       launcher.status,
     ].join('\n');
   }
@@ -110,6 +109,11 @@ export async function startRaid(root: HTMLElement) {
     launcher.update(dt, input);
     projectiles.update(dt);
     player.update(dt, input);
+    mobs.update(dt, player);
+    gameWorld.update(dt);
+    for (const got of gameWorld.loot.update(dt, player.position)) {
+      for (const [id, n] of Object.entries(got)) inventory.materials[id] = (inventory.materials[id] ?? 0) + n;
+    }
     world.step();
     gfx.render(scene, camera, now / 1000);
 

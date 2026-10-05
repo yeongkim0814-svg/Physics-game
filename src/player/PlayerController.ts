@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { RAPIER } from '../core/physics';
+import { moveCharacter } from '../core/characterMotor';
+import { fallDamage } from './damage';
 import type { Input } from '../core/input';
-import type { ImpulseTarget } from '../core/types';
+import type { Damageable, DamageSource, ImpulseTarget } from '../core/types';
 import { TUNING } from '../config/tuning';
 
 const P = TUNING.player;
@@ -11,9 +13,14 @@ const P = TUNING.player;
  * 반동 임펄스는 velocity 에 직접 더해진다: Δv = J / mass.
  * 공중 조작력(airAccel)이 낮아 반동으로 얻은 수평 운동량이 보존된다.
  */
-export class PlayerController implements ImpulseTarget {
+export class PlayerController implements ImpulseTarget, Damageable {
   readonly velocity = new THREE.Vector3();
   readonly position = new THREE.Vector3(); // 발 위치
+  hp: number = P.maxHp;
+  /** 사망 처리(리스폰/결과 화면)는 raid(T8)가 담당. 여기서는 상태만 둔다 */
+  dead = false;
+  /** 마지막으로 피해를 입은 시각(초, performance.now/1000) — 피격 연출용 */
+  lastHitAt = -999;
   yaw = 0;
   pitch = 0;
   grounded = false;
@@ -38,7 +45,6 @@ export class PlayerController implements ImpulseTarget {
     this.controller = world.createCharacterController(0.01);
     this.controller.setUp({ x: 0, y: 1, z: 0 });
     this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
-    this.controller.enableAutostep(0.4, 0.2, false);
   }
 
   get mass() { return P.mass; }
@@ -48,6 +54,14 @@ export class PlayerController implements ImpulseTarget {
     this.velocity.addScaledVector(impulse, 1 / P.mass);
     if (impulse.y > 0) this.grounded = false; // 위로 쏘아 올려지면 즉시 공중 처리
     this.slideTimer = P.recoilSlideTime;
+  }
+
+  /** 몹 공격, 낙하, 누전 등 모든 피해의 단일 진입점 */
+  takeDamage(amount: number, _source: DamageSource) {
+    if (this.dead || amount <= 0) return;
+    this.hp = Math.max(0, this.hp - amount);
+    this.lastHitAt = performance.now() / 1000;
+    if (this.hp <= 0) this.dead = true;
   }
 
   /** 발 위치로 순간이동 (리스폰/스폰용). 속도 초기화 */
@@ -128,9 +142,8 @@ export class PlayerController implements ImpulseTarget {
 
     // 충돌 해소 이동
     const desired = { x: this.velocity.x * dt, y: this.velocity.y * dt, z: this.velocity.z * dt };
-    this.controller.computeColliderMovement(this.collider, desired);
-    const m = this.controller.computedMovement();
     const t = this.body.translation();
+    const m = moveCharacter(this.controller, this.collider, t, desired, this.grounded);
     this.body.setNextKinematicTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
     this.collider.setTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
 
@@ -149,6 +162,8 @@ export class PlayerController implements ImpulseTarget {
       this.grounded = this.controller.computedGrounded() && this.velocity.y <= 0;
       if (hitCeil) this.velocity.y = 0;
     }
+
+    if (this.landingSpeed > 0) this.takeDamage(fallDamage(this.landingSpeed, P.fallSafeSpeed, P.fallDamagePerSpeed), 'fall');
 
     this.position.set(t.x + m.x, t.y + m.y - P.height / 2, t.z + m.z);
     this.eyePosition(this.camera.position);

@@ -37,7 +37,6 @@ export const BASES: Record<BaseId, BaseDef> = {
       chainRadius: C.chainRadius,
       chainFalloff: C.chainFalloff,
       chainMaxHops: C.chainMaxHops,
-      insulatorDamageMul: C.insulatorDamageMul,
       leakDamageMul: C.leakDamageMul,
       wearOvercharge: C.wearOvercharge,
     },
