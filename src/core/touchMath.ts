@@ -1,11 +1,35 @@
 // 터치 입력의 순수 판정 로직 (DOM 없음 → 단위 테스트 대상)
 
+export interface SprintCfg {
+  /** y 가 이 값 이상이면 전력질주 */
+  start: number;
+  /** 전력질주 중 y 가 이 값 이상까지 가면 "자동 전력질주 대기" (이때 손을 떼면 자동 전력질주) */
+  auto: number;
+  /** 경계 떨림 방지: 전력질주 중에는 start - hysteresis 아래로 내려가야 해제 */
+  hysteresis: number;
+}
+export interface SprintState {
+  /** 손가락이 눌린 동안의 전력질주 */
+  sprinting: boolean;
+  /** auto 에 도달한 적이 있고 아직 start 아래로 내려가지 않음 → 손을 떼면 자동 전력질주 */
+  armed: boolean;
+}
+export const SPRINT_IDLE: SprintState = { sprinting: false, armed: false };
+
 /**
- * 전력질주 잠금 아이콘 판정. dx, dy = 조이스틱 시작점에서 손가락까지의 거리(반경 대비 비율, 화면 y 는 아래가 +).
- * 아이콘은 시작점 바로 위 engage 거리에 있고, 손가락이 아이콘 반경(iconRadius, 같은 비율 단위) 안에 들어오면 true.
+ * 조이스틱을 누르고 있는 동안 y(조이스틱 시작점 기준 위쪽 변위, 반경 대비, 위가 +)로 전력질주 상태를 갱신한다.
+ *  - y ≥ start 가 되는 순간 전력질주. 손을 떼지 않고 start 아래로 내리면 해제(+대기도 해제)
+ *  - 전력질주 중 y ≥ auto 에 닿으면 armed. armed 는 start 아래로 내려가기 전까지 유지(손 뗄 때 y 가 살짝 줄어도 인정)
  */
-export function inSprintIcon(dx: number, dy: number, engage: number, iconRadius: number): boolean {
-  return Math.hypot(dx, dy + engage) <= iconRadius;
+export function stepSprint(s: SprintState, y: number, c: SprintCfg): SprintState {
+  const sprinting = s.sprinting ? y >= c.start - c.hysteresis : y >= c.start;
+  const armed = sprinting && (s.armed || y >= c.auto);
+  return { sprinting, armed };
+}
+
+/** 손을 뗄 때 자동 전력질주로 이어지는가 */
+export function autoSprintOnRelease(s: SprintState): boolean {
+  return s.sprinting && s.armed;
 }
 
 export interface Pt { x: number; y: number }

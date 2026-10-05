@@ -61,8 +61,8 @@ export class Input {
   get fire() { return (this.locked && this.mouseButtons.has(0)) || this.touch.fireHeld; }
   get fireClicked() { return (this.locked && this.mouseClicks.has(0)) || this.touch.fireClicked; }
   get jumpPressed() { return this.pressed.has('Space') || this.touch.jumpPressed; }
-  /** 데스크톱: Shift 를 누르는 동안 / 터치: 조이스틱 전력질주 잠금 */
-  get sprint() { return this.key('ShiftLeft') + this.key('ShiftRight') > 0 || this.touch.sprintLocked; }
+  /** 데스크톱: Shift 를 누르는 동안 / 터치: 조이스틱 y 가 start 이상이거나 자동 전력질주 중 */
+  get sprint() { return this.key('ShiftLeft') + this.key('ShiftRight') > 0 || this.touch.sprinting; }
   get swapPressed() { return this.pressed.has('KeyQ') || this.touch.swapPressed; }
   get interactPressed() { return this.pressed.has('KeyE'); }
   /** 디버그/토글용 키 */

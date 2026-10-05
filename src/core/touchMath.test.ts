@@ -1,25 +1,54 @@
 import { describe, expect, it } from 'vitest';
 import { TOUCH } from '../config/settings';
-import { hitCircle, inSprintIcon, stalePointerIds } from './touchMath';
+import { SPRINT_IDLE, autoSprintOnRelease, hitCircle, stalePointerIds, stepSprint, type SprintCfg, type SprintState } from './touchMath';
 
-describe('inSprintIcon', () => {
-  it('아이콘 중심(시작점 바로 위 engage 거리)에 닿으면 true', () => {
-    expect(inSprintIcon(0, -1.5, 1.5, 0.4)).toBe(true);
+const CFG: SprintCfg = { start: 0.85, auto: 1.35, hysteresis: 0.05 };
+/** y 값을 순서대로 넣어 최종 상태를 얻는다 */
+const run = (ys: number[], from: SprintState = SPRINT_IDLE) => ys.reduce((st, y) => stepSprint(st, y, CFG), from);
+
+describe('stepSprint (조이스틱 y 로 전력질주)', () => {
+  it('start 미만이면 걷기(전력질주 아님)', () => {
+    expect(run([0.2, 0.5, 0.84])).toEqual({ sprinting: false, armed: false });
   });
-  it('아이콘 반경 경계 안/밖', () => {
-    expect(inSprintIcon(0.39, -1.5, 1.5, 0.4)).toBe(true);
-    expect(inSprintIcon(0.41, -1.5, 1.5, 0.4)).toBe(false);
-    expect(inSprintIcon(0, -1.5 + 0.41, 1.5, 0.4)).toBe(false);
+  it('y 가 start 이상이 되는 순간 전력질주', () => {
+    expect(run([0.5, 0.85])).toEqual({ sprinting: true, armed: false });
+    expect(run([1.0])).toEqual({ sprinting: true, armed: false });
   });
-  it('평소 최대 전진(반경 1.0)은 아이콘 밖', () => {
-    expect(inSprintIcon(0, -1, 1.5, 0.4)).toBe(false);
+  it('auto 이상까지 올리면 자동 전력질주 대기(armed)', () => {
+    expect(run([0.9, 1.2, 1.36])).toEqual({ sprinting: true, armed: true });
   });
-  it('옆이나 아래로 끌면 아이콘 밖', () => {
-    expect(inSprintIcon(1.5, 0, 1.5, 0.4)).toBe(false);
-    expect(inSprintIcon(0, 1.5, 1.5, 0.4)).toBe(false);
+  it('손을 떼지 않고 start 아래로 내리면 전력질주도 대기도 해제', () => {
+    expect(run([0.9, 1.4, 0.5])).toEqual({ sprinting: false, armed: false });
+    expect(run([0.9, 0.3])).toEqual({ sprinting: false, armed: false });
   });
-  it('좌우 대칭', () => {
-    expect(inSprintIcon(-0.3, -1.5, 1.5, 0.4)).toBe(inSprintIcon(0.3, -1.5, 1.5, 0.4));
+  it('내렸다가 다시 올려도 대기는 처음부터 (이전 도달 기록이 남지 않음)', () => {
+    expect(run([1.4, 0.5, 0.9])).toEqual({ sprinting: true, armed: false });
+  });
+  it('armed 후 start 와 auto 사이로 살짝 내려가도(손 뗄 때 흔들림) 유지', () => {
+    expect(run([1.4, 1.1, 0.95])).toEqual({ sprinting: true, armed: true });
+  });
+  it('경계 떨림 방지: 전력질주 중에는 start-hysteresis 아래로 내려가야 해제', () => {
+    expect(run([0.9, 0.82]).sprinting).toBe(true);
+    expect(run([0.9, 0.79]).sprinting).toBe(false);
+    expect(run([0.8]).sprinting).toBe(false); // 시작할 때는 hysteresis 없이 start 필요
+  });
+  it('입력 상태를 변경하지 않는다', () => {
+    const s: SprintState = { sprinting: true, armed: false };
+    stepSprint(s, 1.4, CFG);
+    expect(s).toEqual({ sprinting: true, armed: false });
+  });
+});
+
+describe('autoSprintOnRelease', () => {
+  it('armed 상태로 손을 떼면 자동 전력질주', () => {
+    expect(autoSprintOnRelease(run([0.9, 1.4]))).toBe(true);
+  });
+  it('전력질주만 하다 떼면 자동 아님', () => {
+    expect(autoSprintOnRelease(run([0.9, 1.1]))).toBe(false);
+  });
+  it('걷다가 떼거나, auto 까지 갔다가 start 아래로 내린 뒤 떼면 자동 아님', () => {
+    expect(autoSprintOnRelease(run([0.5]))).toBe(false);
+    expect(autoSprintOnRelease(run([1.4, 0.4]))).toBe(false);
   });
 });
 
@@ -59,18 +88,16 @@ describe('hitCircle', () => {
 });
 
 describe('TOUCH 설정 불변식', () => {
-  it('조이스틱 림 끝까지 밀어도(반경 1.0) 전력질주 아이콘 판정에 닿지 않는다', () => {
-    const { radius } = TOUCH.joystick;
-    const S = TOUCH.sprint;
-    const iconR = (S.iconSize / 2 + S.triggerSlop) / radius;
-    for (let deg = -90; deg <= 90; deg += 10) {
-      const a = (deg * Math.PI) / 180;
-      expect(inSprintIcon(Math.sin(a), -Math.cos(a), S.iconDistance, iconR)).toBe(false);
-    }
+  const S = TOUCH.sprint;
+  it('전력질주 시작은 조이스틱 데드존보다 크고 림(1.0) 이내라 림 끝까지만 밀어도 닿는다', () => {
+    expect(S.start - S.hysteresis).toBeGreaterThan(TOUCH.joystick.deadzone);
+    expect(S.start).toBeLessThanOrEqual(1);
   });
-  it('아이콘 중심까지 끌면 잠긴다', () => {
-    const { radius } = TOUCH.joystick;
-    const S = TOUCH.sprint;
-    expect(inSprintIcon(0, -S.iconDistance, S.iconDistance, (S.iconSize / 2 + S.triggerSlop) / radius)).toBe(true);
+  it('자동 전력질주 값은 시작 값보다 크다 (림 밖까지 끌어야 한다)', () => {
+    expect(S.auto).toBeGreaterThan(S.start);
+    expect(S.auto).toBeGreaterThan(1);
+  });
+  it('시작 값을 지나친 뒤에만 자동 대기에 들어간다 (자동 값에서 시작 판정이 자연히 포함됨)', () => {
+    expect(stepSprint(SPRINT_IDLE, S.auto, S)).toEqual({ sprinting: true, armed: true });
   });
 });

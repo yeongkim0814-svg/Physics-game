@@ -1,5 +1,5 @@
 import { TOUCH } from '../config/settings';
-import { hitCircle, inSprintIcon, stalePointerIds } from './touchMath';
+import { SPRINT_IDLE, autoSprintOnRelease, hitCircle, stalePointerIds, stepSprint, type SprintState } from './touchMath';
 
 type ButtonId = keyof typeof TOUCH.buttons;
 type Role = ButtonId | 'move' | 'look' | 'ignored';
@@ -26,7 +26,8 @@ export function lockBrowserGestures() {
  *  - 조이스틱 손가락 1개(왼쪽 영역), 시점 손가락 1개는 독립. 조이스틱이 있을 때 왼쪽 영역의 두 번째 손가락은 시점으로 쓴다
  *  - 버튼은 손가락 집합으로 추적: 같은 버튼을 여러 손가락이 눌러도 모두 떼야 해제. FIRE 를 누른 손가락을 끌면 시점이 돈다
  *  - 놓친 pointerup 은 touchend/touchcancel 때 실제 접촉 목록과 대조해 복구하고, 포커스를 잃으면 전부 초기화한다
- *  - 전력질주 잠금: 림까지 밀면 나타나는 아이콘으로 끌어올리면 잠기고 손잡이가 아이콘 자리에 고정, 왼쪽 영역 재터치로 해제
+ *  - 전력질주: 조이스틱 y ≥ start 이면 전력질주(내리면 해제). auto 이상까지 갔다가 손을 떼면 자동 전력질주(손잡이는 림 위쪽에 고정),
+ *    자동 전력질주 중 왼쪽 영역을 다시 터치하면 취소하고 그 터치의 조작을 따른다
  * 상태는 폴링: move*, look*(프레임마다 누적 후 endFrame 에서 0), fire/jump/swap.
  */
 export class TouchControls {
@@ -36,8 +37,10 @@ export class TouchControls {
   fireClicked = false;
   jumpPressed = false;
   swapPressed = false;
-  /** 전력질주 잠금 상태 (손을 떼도 유지) */
+  /** 자동 전력질주 (손을 떼도 유지) */
   sprintLocked = false;
+  /** 조이스틱을 누른 채 y ≥ start 인 동안의 전력질주 */
+  private sprintState: SprintState = SPRINT_IDLE;
   /** 화면 진단 표시 (기기에서 실제로 어떤 터치가 들어오는지 확인용) */
   debug = false;
 
@@ -64,7 +67,7 @@ export class TouchControls {
 
     this.base = this.circle(J.radius * 2, 'rgba(255,255,255,0.12)');
     this.knob = this.circle(J.knobSize, 'rgba(255,255,255,0.35)');
-    this.lockHint = this.circle(S.iconSize, 'rgba(127,191,106,0.35)');
+    this.lockHint = this.circle(S.hintSize, 'rgba(127,191,106,0.35)');
     this.lockHint.textContent = '▲▲';
     this.lockHint.style.cssText += ';align-items:center;justify-content:center;color:#fff;font:bold 12px monospace';
     this.base.style.display = this.knob.style.display = this.lockHint.style.display = 'none';
@@ -98,6 +101,8 @@ export class TouchControls {
   /** 전력질주 잠금 중에는 손을 떼도 전진 입력 1 */
   get moveY() { return this.sprintLocked ? 1 : this.rawY; }
   get fireHeld() { return this.held.fire.size > 0; }
+  /** 전력질주 중인가 (눌려서 start 이상 / 자동 전력질주) */
+  get sprinting() { return this.sprintLocked || this.sprintState.sprinting; }
 
   toggleDebug() {
     this.debug = !this.debug;
@@ -173,6 +178,8 @@ export class TouchControls {
       this.place(this.knob, e.clientX, e.clientY);
       this.base.style.display = this.knob.style.display = 'block';
       this.lockHint.style.display = 'none';
+      this.sprintState = SPRINT_IDLE;
+      this.refreshStick();
     } else if (this.lookPtr === -1) {
       role = 'look'; // 오른쪽 영역, 또는 조이스틱 손가락이 이미 있는 왼쪽 영역의 두 번째 손가락
       this.lookPtr = e.pointerId;
@@ -194,19 +201,18 @@ export class TouchControls {
       // FIRE 를 누른 손가락을 끌면 시점도 돈다 (한 손으로 쏘면서 조준)
       this.lookDX += dxPx * TOUCH.lookSensitivity;
       this.lookDY += dyPx * TOUCH.lookSensitivity;
-    } else if (p.role === 'move' && !this.sprintLocked) {
+    } else if (p.role === 'move') {
       let dx = (p.x - this.origin.x) / J.radius;
       let dy = (p.y - this.origin.y) / J.radius;
       const mag = Math.hypot(dx, dy);
 
-      // 림까지 밀면 잠금 아이콘이 나타나고, 아이콘 위로 끌어올리면 잠금
-      this.lockHint.style.display = mag >= 1 ? 'flex' : 'none';
-      if (mag >= 1) this.place(this.lockHint, this.origin.x, this.origin.y - S.iconDistance * J.radius);
-      const iconR = (S.iconSize / 2 + S.triggerSlop) / J.radius;
-      if (inSprintIcon(dx, dy, S.iconDistance, iconR)) {
-        this.rawX = this.rawY = 0;
-        this.setSprintLock(true);
-        return;
+      // y(위가 +)로 전력질주 판정: 시작 값 이상이면 전력질주, 더 올려 손을 떼면 자동 전력질주
+      const prev = this.sprintState;
+      const next = stepSprint(prev, -dy, S);
+      if (next.sprinting !== prev.sprinting || next.armed !== prev.armed) {
+        this.sprintState = next;
+        if (next.armed && !prev.armed) { try { navigator.vibrate?.(S.vibrateMs); } catch { /* 진동 미지원: 무시 */ } }
+        this.refreshStick();
       }
 
       if (mag > 1) { dx /= mag; dy /= mag; }
@@ -225,7 +231,7 @@ export class TouchControls {
   }
 
   /** 포인터 하나를 표에서 빼고 그 역할의 상태를 정리 */
-  private drop(id: number) {
+  private drop(id: number, allowAuto = true) {
     const p = this.ptrs.get(id);
     if (!p) return;
     this.ptrs.delete(id);
@@ -233,8 +239,11 @@ export class TouchControls {
       this.movePtr = -1;
       this.rawX = this.rawY = 0;
       this.lockHint.style.display = 'none';
-      // 잠금 중이면 고정된 조이스틱 표시를 유지
-      if (!this.sprintLocked) this.base.style.display = this.knob.style.display = 'none';
+      // 전력질주 중 자동 값 이상에서 손을 떼면 자동 전력질주
+      const auto = allowAuto && autoSprintOnRelease(this.sprintState);
+      this.sprintState = SPRINT_IDLE;
+      if (auto) this.setSprintLock(true);
+      else { this.refreshStick(); this.base.style.display = this.knob.style.display = 'none'; }
     } else if (p.role === 'look') {
       this.lookPtr = -1;
     } else if (p.role !== 'ignored') {
@@ -254,17 +263,27 @@ export class TouchControls {
     }
   }
 
+  /** 조이스틱 표시 갱신: 전력질주 중이면 녹색, 자동 전력질주 대기 중이면 더 진하게 + 목표 표시 */
+  private refreshStick() {
+    const { sprinting, armed } = this.sprintState;
+    const green = sprinting || this.sprintLocked;
+    this.base.style.borderColor = this.knob.style.borderColor = green ? GREEN : WHITE;
+    this.knob.style.background = armed || this.sprintLocked ? 'rgba(127,191,106,0.75)' : sprinting ? 'rgba(127,191,106,0.45)' : 'rgba(255,255,255,0.35)';
+    // 전력질주 중에는 자동 전력질주로 이어지는 위치를 조이스틱 위쪽에 표시
+    this.lockHint.style.display = sprinting && this.movePtr !== -1 ? 'flex' : 'none';
+    if (sprinting) this.place(this.lockHint, this.origin.x, this.origin.y - S.auto * J.radius);
+    this.lockHint.style.background = armed ? 'rgba(127,191,106,0.85)' : 'rgba(127,191,106,0.35)';
+  }
+
   private setSprintLock(on: boolean) {
     if (this.sprintLocked === on) return;
     this.sprintLocked = on;
     this.lockHint.style.display = 'none';
-    this.base.style.borderColor = this.knob.style.borderColor = on ? GREEN : WHITE;
-    this.knob.style.background = on ? 'rgba(127,191,106,0.6)' : 'rgba(255,255,255,0.35)';
+    this.refreshStick();
     if (on) {
-      // 손잡이를 조이스틱 위쪽 아이콘 자리에 고정
+      // 손잡이를 림 위쪽 끝에 고정해 자동 전력질주 중임을 표시
       this.base.style.display = this.knob.style.display = 'block';
-      this.place(this.knob, this.origin.x, this.origin.y - S.iconDistance * J.radius);
-      try { navigator.vibrate?.(S.vibrateMs); } catch { /* 진동 미지원: 무시 */ }
+      this.place(this.knob, this.origin.x, this.origin.y - J.radius);
     } else if (this.movePtr === -1) {
       this.base.style.display = this.knob.style.display = 'none';
     }
@@ -272,7 +291,8 @@ export class TouchControls {
 
   /** 포커스 상실/탭 전환: 눌린 채 남는 입력(발사, 이동, 잠금)을 전부 해제 */
   releaseAll() {
-    for (const id of [...this.ptrs.keys()]) this.drop(id);
+    for (const id of [...this.ptrs.keys()]) this.drop(id, false);
+    this.sprintState = SPRINT_IDLE;
     this.setSprintLock(false);
     this.base.style.display = this.knob.style.display = this.lockHint.style.display = 'none';
   }
@@ -282,7 +302,7 @@ export class TouchControls {
     const s = this.stats;
     return `touch ${this.ptrs.size}/${s.max}max  ${rows.join(' ') || '-'}\n` +
       `down ${s.down} up ${s.up} cancel ${s.cancel} healed ${s.healed} ignored ${s.ignored}  ` +
-      `fire ${this.fireHeld ? 'ON' : '-'} sprint ${this.sprintLocked ? 'LOCK' : '-'}`;
+      `fire ${this.fireHeld ? 'ON' : '-'} sprint ${this.sprintLocked ? 'AUTO' : this.sprintState.armed ? 'ARMED' : this.sprintState.sprinting ? 'ON' : '-'}`;
   }
 
   endFrame() {
