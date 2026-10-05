@@ -1,4 +1,8 @@
 import { TUNING } from '../config/tuning';
+import { ARMOR_SLOTS } from '../data/armors';
+import { CONTAINERS, type ContainerSlot } from '../data/containers';
+import { WEAPON_SLOTS, type WeaponSlot } from '../data/weaponSlots';
+import { BASES } from '../data/bases';
 import { EQUIPMENT } from '../data/equipment';
 import { itemDef } from '../data/items';
 import { NODES, NODE_BY_ID, type KnowledgeNode } from '../data/knowledge';
@@ -6,9 +10,10 @@ import { RECIPES } from '../data/recipes';
 import { UPGRADE_BY_ID } from '../data/upgrades';
 import { MATERIAL_ORDER } from '../data/materials';
 import {
-  addItem, allInstances, cloneInst, consumeAll, countOf, hasAll, makeGrid, removeItem, findPlaced,
+  addItem, addItemAny, allInstances, canFitAll, cloneInst, consumeAll, countOf, countOfAll, hasAll, makeGrid, removeItem, findPlaced,
   type Grid, type ItemInstance,
 } from '../inventory/grid';
+import { armorList, carryGrids, carryItems, equippedItems, weaponList, type Equip } from './equip';
 import {
   attachError, attachPart, createItem, detachPart, durableParts, isArmor, isWeaponBase, repairCost, repairItem,
   upgradeApplies, levelOf,
@@ -115,8 +120,7 @@ export function findItem(s: HubSave, uid: string): ItemInstance | undefined {
     return undefined;
   };
   return scan([
-    ...allInstances(s.stash), ...allInstances(s.safe), ...allInstances(s.prep.bag),
-    ...s.prep.weapons, ...Object.values(s.prep.armor).filter((x): x is ItemInstance => !!x),
+    ...allInstances(s.stash), ...allInstances(s.safe), ...carryItems(s.prep.carry), ...equippedItems(s.prep),
   ]);
 }
 
@@ -219,13 +223,20 @@ export function repair(s: HubSave, uid: string): Result {
 }
 
 // ======================= 출격 준비 =======================
+/** 이 무기 베이스가 들어갈 수 있는 빈 칸 (분류가 맞는 칸 중 비어 있는 첫 칸) */
+export function freeWeaponSlot(e: Equip, defId: string): WeaponSlot | null {
+  const cls = BASES[defId as keyof typeof BASES]?.slotClass;
+  return WEAPON_SLOTS.find((w) => w.cls === cls && !e.weapons[w.id])?.id ?? null;
+}
+
 export function equipWeapon(s: HubSave, uid: string): Result {
   const i = findPlaced(s.stash, uid)?.inst;
   if (!i || !isWeaponBase(i)) return fail('창고의 무기 베이스를 선택');
   if (isBusy(s, i)) return fail('연구 중인 아이템');
-  if (s.prep.weapons.length >= TUNING.hub.weaponSlots) return fail(`무기 슬롯 ${TUNING.hub.weaponSlots}개가 가득 참`);
+  const slot = freeWeaponSlot(s.prep, i.defId);
+  if (!slot) return fail('맞는 무기 칸이 가득 찼거나 없음');
   removeItem(s.stash, uid);
-  s.prep.weapons.push(i);
+  s.prep.weapons[slot] = i;
   return { ok: true };
 }
 
@@ -242,44 +253,75 @@ export function equipArmor(s: HubSave, uid: string): Result {
   return { ok: true };
 }
 
-/** 장착 해제 → 창고. 공간이 없으면 실패 */
-export function unequip(s: HubSave, what: { weapon: string } | { armor: 'body' | 'aux' }): Result {
-  if ('weapon' in what) {
-    const idx = s.prep.weapons.findIndex((w) => w.uid === what.weapon);
-    if (idx < 0) return fail('장착된 무기가 아님');
-    if (addItem(s.stash, s.prep.weapons[idx])) return fail('창고 공간 부족');
-    s.prep.weapons.splice(idx, 1);
-    return { ok: true };
-  }
-  const a = s.prep.armor[what.armor];
-  if (!a) return fail('장착된 방어구가 아님');
-  if (addItem(s.stash, a)) return fail('창고 공간 부족');
-  delete s.prep.armor[what.armor];
+/** 조끼/가방 장착: 그 크기의 빈 격자가 생긴다. 이미 있던 것은 비어 있어야 교체된다 */
+export function equipContainer(s: HubSave, uid: string): Result {
+  const i = findPlaced(s.stash, uid)?.inst;
+  const def = i && CONTAINERS[i.defId];
+  if (!i || !def) return fail('창고의 조끼/가방을 선택');
+  const slot: ContainerSlot = def.slot;
+  const oldGrid = s.prep.carry[slot];
+  if (oldGrid && oldGrid.placed.length) return fail('장착 중인 보관 장비를 먼저 비우세요');
+  const old = s.prep.containers[slot];
+  const snap = gridSnapshot(s.stash);
+  removeItem(s.stash, uid);
+  if (old && addItem(s.stash, old)) { gridRestore(s.stash, snap); return fail('교체된 장비를 둘 창고 공간이 부족'); }
+  s.prep.containers[slot] = i;
+  s.prep.carry[slot] = makeGrid(def.w, def.h);
   return { ok: true };
 }
 
-/** 가방·장착을 전부 창고로 되돌린다. 못 넣는 것은 그대로 남기고 개수를 알려 준다 */
+type UnequipTarget = { weapon: WeaponSlot } | { armor: 'helmet' | 'body' } | { container: ContainerSlot };
+/** 장착 해제 → 창고. 공간이 없거나(보관 장비는) 내용물이 남아 있으면 실패 */
+export function unequip(s: HubSave, what: UnequipTarget): Result {
+  if ('weapon' in what) {
+    const w = s.prep.weapons[what.weapon];
+    if (!w) return fail('장착된 무기가 아님');
+    if (addItem(s.stash, w)) return fail('창고 공간 부족');
+    delete s.prep.weapons[what.weapon];
+    return { ok: true };
+  }
+  if ('armor' in what) {
+    const a = s.prep.armor[what.armor];
+    if (!a) return fail('장착된 방어구가 아님');
+    if (addItem(s.stash, a)) return fail('창고 공간 부족');
+    delete s.prep.armor[what.armor];
+    return { ok: true };
+  }
+  const c = s.prep.containers[what.container];
+  if (!c) return fail('장착된 보관 장비가 아님');
+  if (s.prep.carry[what.container]?.placed.length) return fail('내용물을 먼저 비우세요');
+  if (addItem(s.stash, c)) return fail('창고 공간 부족');
+  delete s.prep.containers[what.container];
+  s.prep.carry[what.container] = null;
+  return { ok: true };
+}
+
+/** 주머니·조끼·가방 내용물과 장착을 전부 창고로 되돌린다. 못 넣는 것은 그대로 남기고 개수를 알려 준다 */
 export function stowPrep(s: HubSave): { moved: number; left: number } {
   let moved = 0, left = 0;
-  for (const p of [...s.prep.bag.placed]) {
-    const rest = addItem(s.stash, p.inst);
-    if (rest) { left++; } else { removeItem(s.prep.bag, p.inst.uid); moved++; }
+  for (const g of carryGrids(s.prep.carry)) {
+    for (const p of [...g.placed]) {
+      const rest = addItem(s.stash, p.inst);
+      if (rest) { left++; } else { removeItem(g, p.inst.uid); moved++; }
+    }
   }
-  for (const w of [...s.prep.weapons]) { if (unequip(s, { weapon: w.uid }).ok) moved++; else left++; }
-  for (const k of ['body', 'aux'] as const) if (s.prep.armor[k]) { if (unequip(s, { armor: k }).ok) moved++; else left++; }
+  for (const w of WEAPON_SLOTS) if (s.prep.weapons[w.id]) { if (unequip(s, { weapon: w.id }).ok) moved++; else left++; }
+  for (const k of ARMOR_SLOTS) if (s.prep.armor[k]) { if (unequip(s, { armor: k }).ok) moved++; else left++; }
+  for (const k of ['vest', 'backpack'] as const) if (s.prep.containers[k]) { if (unequip(s, { container: k }).ok) moved++; else left++; }
   return { moved, left };
 }
 
 export const AMMO_IDS = MATERIAL_ORDER;
-const ammoTotal = (g: Grid) => AMMO_IDS.reduce((a, id) => a + countOf(g, id), 0);
+const ammoTotal = (gs: Grid[]) => AMMO_IDS.reduce((a, id) => a + countOfAll(gs, id), 0);
 
-/** 출격: prep → raid. 무기가 없으면 불가. 탄이 너무 적으면 보급 재료를 가방에 채운다(진행 불능 방지) */
+/** 출격: prep → raid. 무기가 없으면 불가. 탄이 너무 적으면 보급 재료를 가져갈 격자에 채운다(진행 불능 방지) */
 export function beginRaid(s: HubSave, now: number): Result {
   if (s.raid) return fail('이미 레이드 중');
-  if (!s.prep.weapons.length) return fail('무기를 1개 이상 장착하세요');
+  if (!weaponList(s.prep).length) return fail('무기를 1개 이상 장착하세요');
   const R = TUNING.raid;
-  const short = R.minKitTotal - ammoTotal(s.prep.bag);
-  if (short > 0) addItem(s.prep.bag, createItem(R.rationMaterial, short));
+  const grids = carryGrids(s.prep.carry);
+  const short = R.minKitTotal - ammoTotal(grids);
+  if (short > 0) addItemAny(grids, createItem(R.rationMaterial, short));
   s.raid = { ...s.prep, startedAt: now };
   s.prep = emptyPrep();
   s.stats.raids++;
@@ -293,10 +335,7 @@ export interface ExtractReport { gained: Record<string, number>; overflow: numbe
 export interface DeathReport { lost: ItemInstance[]; kept: ItemInstance[] }
 
 function raidItems(r: RaidSession): ItemInstance[] {
-  return [
-    ...r.weapons, ...Object.values(r.armor).filter((x): x is ItemInstance => !!x),
-    ...allInstances(r.bag),
-  ];
+  return [...equippedItems(r), ...carryItems(r.carry)];
 }
 
 /** 탈출 성공: 가방·장착 장비·안전 보관함을 창고로 입고. 창고가 가득 차 못 들어간 것은 pending 으로 (입고 선택 화면) */
@@ -347,9 +386,9 @@ export function ensureEssentials(s: HubSave): boolean {
 
 /** 어디에도 무기 베이스가 없으면 운동량 사출기 1개를 창고(안 되면 입고 대기)에 지급 */
 export function ensureStarterWeapon(s: HubSave) {
-  const grids = [s.stash, s.safe, s.prep.bag, s.pending, ...(s.raid ? [s.raid.bag] : [])];
+  const grids = [s.stash, s.safe, s.pending, ...carryGrids(s.prep.carry), ...(s.raid ? carryGrids(s.raid.carry) : [])];
   // 진행 중인 레이드에 들고 간 무기도 "있는 것"으로 센다 (아니면 출격 직후마다 보급 무기가 공짜로 생긴다)
-  const has = grids.some((g) => allInstances(g).some(isWeaponBase)) || s.prep.weapons.length > 0 || (s.raid?.weapons.length ?? 0) > 0;
+  const has = grids.some((g) => allInstances(g).some(isWeaponBase)) || weaponList(s.prep).length > 0 || (s.raid ? weaponList(s.raid).length > 0 : false);
   if (has) return false;
   const w = createItem('momentum_launcher');
   if (addItem(s.stash, w)) addItem(s.pending, w);
@@ -364,17 +403,16 @@ export function discardPending(s: HubSave, uid: string): boolean {
 }
 
 // ======================= 레이드 가방 편의 =======================
-/** 아이템 맵({id: 수량})이 격자에 전부 들어가는가 (격자는 바꾸지 않는다) */
-export function canAddAll(g: Grid, items: Record<string, number>): boolean {
-  const probe: Grid = { w: g.w, h: g.h, placed: JSON.parse(JSON.stringify(g.placed)) };
-  return Object.entries(items).every(([id, n]) => !addItem(probe, createItem(id, n, { found: true })));
+/** 아이템 맵({id: 수량})이 가져갈 격자들(주머니·조끼·가방)에 전부 들어가는가 (격자는 바뀌지 않는다) */
+export function canAddAll(gs: Grid[], items: Record<string, number>): boolean {
+  return canFitAll(gs, Object.entries(items).map(([defId, count]) => ({ defId, count, found: true })), (id, n, found) => createItem(id, n, { found }));
 }
 
-/** 레이드 중 획득 아이템을 가방에 넣는다 (found 표시). 공간이 없으면 아무것도 넣지 않고 false */
-export function pickUpToBag(bag: Grid, defId: string, count: number): boolean {
-  const snap = gridSnapshot(bag);
-  const item = createItem(defId, count, { found: true });
-  if (addItem(bag, item)) { gridRestore(bag, snap); return false; }
+/** 레이드 중 획득 아이템을 가져갈 격자들에 넣는다 (found 표시). 공간이 없으면 아무것도 넣지 않고 false */
+export function pickUpToBag(gs: Grid[], defId: string, count: number): boolean {
+  const snaps = gs.map(gridSnapshot);
+  const rest = addItemAny(gs, createItem(defId, count, { found: true }));
+  if (rest) { gs.forEach((g, i) => gridRestore(g, snaps[i])); return false; }
   return true;
 }
 
@@ -383,4 +421,4 @@ export function safeBoxRejects(inst: ItemInstance): string | null {
   return inst.found ? null : '레이드에서 획득한 아이템만 넣을 수 있습니다';
 }
 
-export { durableParts };
+export { durableParts, armorList };

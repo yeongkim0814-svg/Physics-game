@@ -9,9 +9,9 @@ import { ensureHubStyle } from '../ui/hubStyle';
 export function startGridTest(root: HTMLElement) {
   ensureHubStyle();
   const G = TUNING.hub.grid;
-  const stash = makeGrid(G.stash.w, G.stash.h), safe = makeGrid(G.safe.w, G.safe.h), bag = makeGrid(G.bag.w, G.bag.h);
+  const stash = makeGrid(G.stash.w, G.stash.h), safe = makeGrid(G.safe.w, G.safe.h), bag = makeGrid(8, 6);
   for (const [id, n] of [['momentum_launcher', 1], ['em_coil', 1], ['plate_vest', 1], ['analyzer_1', 1], ['handle', 1], ['scope', 1],
-    ['scrap', 45], ['slag', 20], ['ingot', 7], ['copper_wire', 12], ['shin_guard', 1]] as const) addItem(stash, createItem(id, n));
+    ['scrap', 45], ['slag', 20], ['ingot', 7], ['copper_wire', 12], ['scrap_helmet', 1]] as const) addItem(stash, createItem(id, n));
   addItem(bag, createItem('anomaly_sample', 2, { found: true }));
   addItem(bag, createItem('magnet_chip', 3, { found: true }));
 

@@ -8,7 +8,7 @@ import type { Grid } from '../inventory/grid';
  * 레이드 중 가방 화면: 가방 ↔ 안전 보관함. 안전 보관함에는 이번 레이드에서 획득한(★) 아이템만 넣을 수 있고,
  * 사망해도 유지된다. 열려 있는 동안 레이드는 일시정지(호출측).
  */
-export function openBagOverlay(root: HTMLElement, bag: Grid, safe: Grid, onChange: () => void, onClose: () => void) {
+export function openBagOverlay(root: HTMLElement, carry: { id: string; title: string; grid: Grid }[], safe: Grid, onChange: () => void, onClose: () => void) {
   ensureHubStyle();
   const el = document.createElement('div');
   el.className = 'hub';
@@ -25,7 +25,7 @@ export function openBagOverlay(root: HTMLElement, bag: Grid, safe: Grid, onChang
   body.className = 'hub-body';
   const board = createInventoryBoard({
     grids: [
-      { id: 'bag', title: '가방', grid: bag },
+      ...carry,
       { id: 'safe', title: '안전 보관함', grid: safe, note: '획득품만 · 사망해도 유지', accepts: (i) => safeBoxRejects(i) },
     ],
     allowDiscard: true,

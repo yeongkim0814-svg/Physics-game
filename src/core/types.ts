@@ -5,7 +5,8 @@ export type SlotKind = 'front' | 'rear' | 'top' | 'sub';
 /** A·B 는 레이드에서 동작. C·D·E 는 데이터/허브 해금 흐름만 있고 레이드에서는 placeholder (BaseDef.implemented) */
 export type BaseId =
   | 'momentum_launcher' | 'em_coil'
-  | 'flywheel_accumulator' | 'mass_annihilator' | 'tunneling_launcher';
+  | 'flywheel_accumulator' | 'mass_annihilator' | 'tunneling_launcher'
+  | 'pocket_launcher' | 'impact_blade';
 export type MobKind = 'metal' | 'insulator' | 'normal';
 
 /** 모든 수치 보정은 스탯 키-값으로 합산된다. 키 목록은 data/bases.ts 참고. 'Mul' 로 끝나는 키는 기본값 1, 나머지는 0. */
@@ -30,6 +31,8 @@ export interface BaseDef {
   name: string;
   /** false 면 레이드에서 placeholder 무기로 대체된다 (이번 범위 밖) */
   implemented: boolean;
+  /** 들어가는 무기 칸 분류 */
+  slotClass: import('../data/weaponSlots').SlotClass;
   maxDurability: number;
   stats: Record<string, number>;
 }

@@ -21,6 +21,9 @@ export const STAT_META: Record<string, StatMeta> = {
   chainRadius: { label: '연쇄 반경', better: 'neutral', digits: 1, unit: ' m' },
   leakDamageMul: { label: '누전 피해', better: 'down', digits: 2, unit: '×' },
   wearOvercharge: { label: '마모율(과충전)', better: 'down', digits: 2 },
+  meleeDamage: { label: '타격 피해', better: 'up', digits: 1 },
+  meleeReach: { label: '타격 사거리', better: 'up', digits: 1, unit: ' m' },
+  meleeInterval: { label: '타격 간격', better: 'down', digits: 2, unit: ' s' },
   stability: { label: '안정성', better: 'up', digits: 2 },
   moveSpeedMul: { label: '이동 속도', better: 'up', digits: 2, unit: '×' },
   aimSpeedMul: { label: '조준 속도', better: 'up', digits: 2, unit: '×' },
@@ -31,6 +34,8 @@ const COMMON = ['stability', 'moveSpeedMul', 'aimSpeedMul', 'fovMul'];
 export const BASE_STAT_KEYS: Record<BaseId, string[]> = {
   momentum_launcher: ['projectileSpeed', 'recoil', 'spreadBase', 'fireInterval', 'wearPerRecoil', 'durabilityCostPerShot', ...COMMON],
   em_coil: ['maxDamage', 'chargeTime', 'arcRange', 'spread', 'chainRadius', 'leakDamageMul', 'wearOvercharge', 'durabilityCostPerShot', ...COMMON],
+  pocket_launcher: ['projectileSpeed', 'recoil', 'spreadBase', 'fireInterval', 'wearPerRecoil', 'durabilityCostPerShot', ...COMMON],
+  impact_blade: ['meleeDamage', 'meleeReach', 'meleeInterval', 'durabilityCostPerShot', ...COMMON],
   flywheel_accumulator: COMMON, mass_annihilator: COMMON, tunneling_launcher: COMMON,
 };
 

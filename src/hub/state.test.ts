@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { TUNING } from '../config/tuning';
-import { addItem, countOf, makeGrid, allInstances, findPlaced, placeAt, newInstance } from '../inventory/grid';
+import { addItem, countOf, countOfAll, makeGrid, allInstances, findPlaced, placeAt, newInstance } from '../inventory/grid';
 import { createItem, repairCost, weaponStats, armorStatsOf, weaponStateOf } from './gear';
 import { defaultSave, parseSave, serializeSave, emptyPrep } from './save';
 import {
-  analyzerTier, attach, beginRaid, busyUids, craft, detach, equipArmor, equipWeapon, nextNodeFor,
+  analyzerTier, attach, beginRaid, busyUids, craft, detach, equipArmor, equipContainer, equipWeapon, nextNodeFor,
   pickUpToBag, remainingMs, repair, resolveJobs, safeBoxRejects, settleDeath, settleExtract, startAnalysis,
   startResearch, unequip, ensureStarterWeapon, analysisStatus, researchStatus,
 } from './state';
+import { carryGrids, weaponList } from './equip';
 import { computeStats } from '../data/loadout';
 import { BASES } from '../data/bases';
 
@@ -257,12 +258,60 @@ describe('출격 준비 → 레이드', () => {
     expect(beginRaid(defaultSave(), T0).ok).toBe(false);
   });
 
-  it('무기 슬롯 수를 넘길 수 없다', () => {
+  it('무기 칸: 주무기 2 · 보조 1 · 근접 1, 분류가 맞는 칸에만 들어간다', () => {
     const s = defaultSave();
-    for (let i = 0; i < TUNING.hub.weaponSlots + 1; i++) giveStash(s, 'em_coil');
-    let ok = 0;
-    for (const w of allInstances(s.stash).filter((i) => i.defId === 'em_coil')) if (equipWeapon(s, w.uid).ok) ok++;
-    expect(ok).toBe(TUNING.hub.weaponSlots);
+    for (let i = 0; i < 3; i++) giveStash(s, 'em_coil'); // 주무기 3개 중 2개만 장착
+    giveStash(s, 'pocket_launcher');
+    giveStash(s, 'impact_blade');
+    let primaries = 0;
+    for (const w of allInstances(s.stash).filter((i) => i.defId === 'em_coil')) if (equipWeapon(s, w.uid).ok) primaries++;
+    expect(primaries).toBe(2);
+    expect(equipWeapon(s, find(s, 'momentum_launcher').uid).ok).toBe(false); // 주무기 칸이 가득
+    expect(equipWeapon(s, find(s, 'pocket_launcher').uid).ok).toBe(true);
+    expect(s.prep.weapons.secondary?.defId).toBe('pocket_launcher');
+    expect(equipWeapon(s, find(s, 'impact_blade').uid).ok).toBe(true);
+    expect(s.prep.weapons.melee?.defId).toBe('impact_blade');
+    expect(weaponList(s.prep).map((w) => w.defId)).toEqual(['em_coil', 'em_coil', 'pocket_launcher', 'impact_blade']); // 칸 순서
+  });
+
+  it('헬멧과 방어구는 별개 칸, 조끼·가방은 장착하면 그 크기의 격자가 생긴다', () => {
+    const s = defaultSave();
+    expect(equipArmor(s, find(s, 'scrap_helmet').uid).ok).toBe(true);
+    expect(equipArmor(s, find(s, 'scrap_vest').uid).ok).toBe(true);
+    expect(s.prep.armor.helmet?.defId).toBe('scrap_helmet');
+    expect(s.prep.armor.body?.defId).toBe('scrap_vest');
+    expect(s.prep.carry.vest).toBeNull();
+    expect(equipContainer(s, find(s, 'scrap_rig').uid).ok).toBe(true);
+    expect(equipContainer(s, find(s, 'canvas_backpack').uid).ok).toBe(true);
+    expect(s.prep.carry.vest).toMatchObject({ w: 4, h: 2 });
+    expect(s.prep.carry.backpack).toMatchObject({ w: 6, h: 4 });
+    expect(carryGrids(s.prep.carry)).toHaveLength(3); // 주머니 + 조끼 + 가방
+  });
+
+  it('내용물이 있는 조끼·가방은 벗거나 교체할 수 없다', () => {
+    const s = defaultSave();
+    equipContainer(s, find(s, 'canvas_backpack').uid);
+    addItem(s.prep.carry.backpack!, createItem('scrap', 5));
+    expect(unequip(s, { container: 'backpack' }).ok).toBe(false);
+    giveStash(s, 'field_pack');
+    expect(equipContainer(s, find(s, 'field_pack').uid).ok).toBe(false);
+    s.prep.carry.backpack!.placed = [];
+    expect(equipContainer(s, find(s, 'field_pack').uid).ok).toBe(true); // 비우면 교체
+    expect(s.prep.carry.backpack).toMatchObject({ w: 8, h: 6 });
+    expect(find(s, 'canvas_backpack')).toBeTruthy(); // 이전 가방은 창고로
+  });
+
+  it('출격하면 조끼·가방 격자도 레이드로 가고, 사망하면 내용물과 함께 사라진다', () => {
+    const s = defaultSave();
+    equipWeapon(s, find(s, 'momentum_launcher').uid);
+    equipContainer(s, find(s, 'canvas_backpack').uid);
+    addItem(s.prep.carry.backpack!, createItem('scrap', 12));
+    beginRaid(s, T0);
+    expect(s.raid!.carry.backpack).not.toBeNull();
+    expect(countOfAll(carryGrids(s.raid!.carry), 'scrap')).toBeGreaterThanOrEqual(12);
+    const rep = settleDeath(s);
+    expect(rep.lost.some((i) => i.defId === 'canvas_backpack')).toBe(true);
+    expect(find(s, 'canvas_backpack')).toBeUndefined();
   });
 
   it('방어구는 슬롯별로 하나, 교체 시 이전 것이 창고로', () => {
@@ -279,9 +328,9 @@ describe('출격 준비 → 레이드', () => {
   it('출격하면 prep 이 비고 raid 가 생긴다. 탄이 부족하면 보급 재료가 가방에 들어간다', () => {
     const s = ready();
     expect(beginRaid(s, T0).ok).toBe(true);
-    expect(s.prep.weapons).toHaveLength(0);
-    expect(s.raid!.weapons).toHaveLength(1);
-    expect(countOf(s.raid!.bag, TUNING.raid.rationMaterial)).toBe(TUNING.raid.minKitTotal);
+    expect(weaponList(s.prep)).toHaveLength(0);
+    expect(weaponList(s.raid!)).toHaveLength(1);
+    expect(countOf(s.raid!.carry.pockets, TUNING.raid.rationMaterial)).toBe(TUNING.raid.minKitTotal);
     expect(beginRaid(s, T0).ok).toBe(false);
   });
 
@@ -300,20 +349,20 @@ describe('탈출/사망 정산', () => {
     const s = defaultSave();
     equipWeapon(s, find(s, 'momentum_launcher').uid);
     equipArmor(s, find(s, 'scrap_vest').uid);
-    addItem(s.prep.bag, createItem('scrap', 10)); // 들고 들어간 재료
+    addItem(s.prep.carry.pockets, createItem('scrap', 10)); // 들고 들어간 재료
     beginRaid(s, T0);
     return s;
   };
 
   it('탈출 성공: 가방·무기·방어구·안전 보관함이 창고로, found 표시는 사라진다', () => {
     const s = raidWith();
-    expect(pickUpToBag(s.raid!.bag, 'anomaly_sample', 1)).toBe(true);
+    expect(pickUpToBag(carryGrids(s.raid!.carry), 'anomaly_sample', 1)).toBe(true);
     // 획득한 샘플을 안전 보관함으로
-    const sample = allInstances(s.raid!.bag).find((i) => i.defId === 'anomaly_sample')!;
+    const sample = allInstances(s.raid!.carry.pockets).find((i) => i.defId === 'anomaly_sample')!;
     expect(safeBoxRejects(sample)).toBeNull();
-    s.raid!.bag.placed = s.raid!.bag.placed.filter((p) => p.inst !== sample);
+    s.raid!.carry.pockets.placed = s.raid!.carry.pockets.placed.filter((p) => p.inst !== sample);
     addItem(s.safe, sample);
-    pickUpToBag(s.raid!.bag, 'copper_wire', 3);
+    pickUpToBag(carryGrids(s.raid!.carry), 'copper_wire', 3);
     const rep = settleExtract(s);
     expect(s.raid).toBeNull();
     expect(rep.overflow).toBe(0);
@@ -328,11 +377,11 @@ describe('탈출/사망 정산', () => {
 
   it('사망: 가방·장착 장비 손실, 안전 보관함은 유지', () => {
     const s = raidWith();
-    pickUpToBag(s.raid!.bag, 'anomaly_sample', 1);
-    const sample = allInstances(s.raid!.bag).find((i) => i.defId === 'anomaly_sample')!;
-    s.raid!.bag.placed = s.raid!.bag.placed.filter((p) => p.inst !== sample);
+    pickUpToBag(carryGrids(s.raid!.carry), 'anomaly_sample', 1);
+    const sample = allInstances(s.raid!.carry.pockets).find((i) => i.defId === 'anomaly_sample')!;
+    s.raid!.carry.pockets.placed = s.raid!.carry.pockets.placed.filter((p) => p.inst !== sample);
     addItem(s.safe, sample);
-    pickUpToBag(s.raid!.bag, 'magnet_chip', 2);
+    pickUpToBag(carryGrids(s.raid!.carry), 'magnet_chip', 2);
     const scrapBefore = countOf(s.stash, 'scrap');
     const rep = settleDeath(s);
     expect(s.raid).toBeNull();
@@ -368,7 +417,7 @@ describe('탈출/사망 정산', () => {
     const s = raidWith();
     s.stash = makeGrid(3, 3); // 거의 꽉 찬 창고
     for (let i = 0; i < 9; i++) placeAt(s.stash, newInstance('slag', 1), i % 3, Math.floor(i / 3), false);
-    pickUpToBag(s.raid!.bag, 'copper_wire', 3);
+    pickUpToBag(carryGrids(s.raid!.carry), 'copper_wire', 3);
     const rep = settleExtract(s);
     expect(rep.overflow).toBeGreaterThan(0);
     expect(s.pending.placed.length).toBeGreaterThan(0);
@@ -377,12 +426,12 @@ describe('탈출/사망 정산', () => {
 
   it('가방이 가득 차면 획득이 거부되고 가방은 변하지 않는다', () => {
     const s = raidWith();
-    const bag = s.raid!.bag;
+    const bag = s.raid!.carry.pockets;
     while (!addItem(bag, createItem('em_coil'))) { /* 가득 찰 때까지 */ }
     bag.placed.pop(); // 마지막 부분 추가분 정리
     while (!addItem(bag, createItem('slag', 30))) { /* 틈 메우기 */ }
     const snap = JSON.stringify(bag.placed);
-    expect(pickUpToBag(bag, 'magnet_chip', 1)).toBe(false);
+    expect(pickUpToBag([bag], 'magnet_chip', 1)).toBe(false);
     expect(JSON.stringify(bag.placed)).toBe(snap);
   });
 
@@ -446,8 +495,8 @@ describe('저장/불러오기', () => {
 
   it('잘못된 prep/raid 구조여도 크래시하지 않는다', () => {
     const l = parseSave(JSON.stringify({ v: 2, prep: 5, raid: { bag: 3, weapons: 'x' }, stash: null }));
-    expect(l.prep.weapons).toEqual([]);
-    expect(emptyPrep().bag.w).toBe(l.prep.bag.w);
+    expect(weaponList(l.prep)).toEqual([]);
+    expect(emptyPrep().carry.pockets.w).toBe(l.prep.carry.pockets.w);
     expect(findPlaced(l.stash, 'x')).toBeUndefined();
   });
 });

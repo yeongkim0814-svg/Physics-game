@@ -26,7 +26,7 @@ T1 플레이어+지형 → T2 데이터 → T3 사출기(반동) → T4 월드 �
 ## 2단계 구조 (허브·인벤토리·연구 루프)
 ```
 src/
-  data/items.ts knowledge.ts recipes.ts upgrades.ts armors.ts equipment.ts   아이템·노드·레시피·개량·방어구 정의(코드 수정 없이 조정)
+  data/items.ts knowledge.ts recipes.ts upgrades.ts armors.ts containers.ts weaponSlots.ts equipment.ts   아이템·노드·레시피·개량·방어구 정의(코드 수정 없이 조정)
   config/tuning.ts → TUNING.hub        격자 크기·무기 슬롯·시간 배율·수리 비용·방어구 규칙·격자 UI 수치
   inventory/grid.ts                    격자 순수 로직(배치·스택·정렬·검증). grid.test.ts
   inventory/InventoryBoard.ts          터치 격자 UI (탭 선택→탭 배치, 드래그, 회전, 자동 배치, 정렬, 수량 분할)
@@ -39,6 +39,6 @@ src/
   player/armor.ts                      방어구 저항·마모·이동 페널티
   ui/BagOverlay.ts                     레이드 중 가방 ↔ 안전 보관함
 ```
-- 위치 규칙: `stash`(창고) / `safe`(안전 보관함: 레이드 획득(found)품만 입장, 사망해도 유지) / `prep`(가방+장착) / `raid`(진행 중 레이드; 남은 채 로드되면 이탈=사망) / `pending`(탈출 후 창고 초과분)
+- 위치 규칙: `stash`(창고) / `safe`(안전 보관함: 레이드 획득(found)품만 입장, 사망해도 유지) / `prep`(주머니/조끼/가방 격자 + 장착 equip) / `raid`(진행 중 레이드; 남은 채 로드되면 이탈=사망) / `pending`(탈출 후 창고 초과분)
 - 분석·연구는 `{startedAt, durationMs}` 타임스탬프 → 화면 이동·앱 종료와 무관하게 진행, 로드/매초 `resolveJobs` 가 확정
 - 개발 진입점: `?dev=grid`(격자 단독), `?dev=raid`(허브 생략·저장 안 건드림, `&armor=plate_vest&aux=shin_guard&rear=handle&base=em_coil`)

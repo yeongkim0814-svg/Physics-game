@@ -243,3 +243,43 @@ export function isValidInst(i: unknown): i is ItemInstance {
   }
   return true;
 }
+
+// ---------- 여러 격자를 하나의 보관 공간으로 (주머니 + 조끼 + 가방) ----------
+export const countOfAll = (gs: Grid[], defId: string, found?: boolean) => gs.reduce((n, g) => n + countOf(g, defId, found), 0);
+
+/** 앞 격자부터 채워 넣는다(스택은 어느 격자의 기존 스택이든 먼저 합친다). 못 넣은 나머지를 반환 */
+export function addItemAny(gs: Grid[], inst: ItemInstance): ItemInstance | null {
+  let rest: ItemInstance | null = inst;
+  for (const g of gs) {
+    if (!rest) break;
+    rest = addItem(g, rest);
+  }
+  return rest;
+}
+
+/** 여러 격자에서 n 개 소모 (획득 출처 우선순위는 consumeFrom 과 같다). 부족하면 아무것도 안 하고 false */
+export function consumeFromAll(gs: Grid[], defId: string, n: number): boolean {
+  if (countOfAll(gs, defId) < n) return false;
+  let left = n;
+  // 들고 온 것 먼저, 그다음 획득품: 격자별로가 아니라 전체에서 출처 순으로
+  for (const found of [false, true]) {
+    for (const g of gs) {
+      if (left <= 0) break;
+      const have = countOf(g, defId, found);
+      if (!have) continue;
+      const take = Math.min(left, have);
+      const stacks = g.placed.filter((p) => p.inst.defId === defId && !!p.inst.found === found).sort((a, b) => a.inst.count - b.inst.count);
+      let t = take;
+      for (const p of stacks) { const x = Math.min(t, p.inst.count); p.inst.count -= x; t -= x; if (t <= 0) break; }
+      g.placed = g.placed.filter((p) => p.inst.count > 0);
+      left -= take;
+    }
+  }
+  return true;
+}
+
+/** 아이템 맵을 전부 넣을 자리가 있는가 (원본 격자는 바뀌지 않는다) */
+export function canFitAll(gs: Grid[], items: { defId: string; count: number; found?: boolean }[], make: (id: string, n: number, found?: boolean) => ItemInstance): boolean {
+  const probe = gs.map((g) => ({ w: g.w, h: g.h, placed: JSON.parse(JSON.stringify(g.placed)) as Grid['placed'] }));
+  return items.every((i) => !addItemAny(probe, make(i.defId, i.count, i.found)));
+}

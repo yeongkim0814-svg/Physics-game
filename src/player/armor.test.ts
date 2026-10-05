@@ -13,7 +13,7 @@ describe('방어구', () => {
   });
 
   it('몸통+보조는 곱연산', () => {
-    const v = createItem('plate_vest'), g = createItem('shin_guard');
+    const v = createItem('plate_vest'), g = createItem('scrap_helmet');
     expect(resolveArmorHit([v, g], 100, 'physical')).toBeCloseTo(100 * 0.65 * 0.9);
   });
 
@@ -32,7 +32,7 @@ describe('방어구', () => {
   it('이동속도 페널티: 중장갑은 느려지고 하한이 있다', () => {
     expect(armorSpeedMul([])).toBe(1);
     expect(armorSpeedMul([createItem('plate_vest')])).toBeCloseTo(0.85);
-    expect(armorSpeedMul([createItem('plate_vest'), createItem('shin_guard')])).toBeCloseTo(0.85 * 0.97);
+    expect(armorSpeedMul([createItem('plate_vest'), createItem('scrap_helmet')])).toBeCloseTo(0.85 * 0.98);
     const heavy = createItem('plate_vest');
     heavy.lv = { armor_plating: 3 };
     expect(armorSpeedMul([heavy])).toBeLessThan(0.85);

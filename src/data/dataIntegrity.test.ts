@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { TUNING } from '../config/tuning';
 import { START_ITEMS } from './startState';
 import { ARMORS } from './armors';
+import { CONTAINERS } from './containers';
+import { WEAPON_SLOTS } from './weaponSlots';
 import { BASES } from './bases';
 import { EQUIPMENT } from './equipment';
 import { ITEMS } from './items';
@@ -23,15 +25,16 @@ describe('데이터 무결성', () => {
       if (d.kind === 'weapon_base') expect(BASES[d.id as keyof typeof BASES], d.id).toBeTruthy();
       if (d.kind === 'weapon_part') expect(PARTS[d.id], d.id).toBeTruthy();
       if (d.kind === 'armor') expect(ARMORS[d.id], d.id).toBeTruthy();
+      if (d.kind === 'container') expect(CONTAINERS[d.id], d.id).toBeTruthy();
       if (d.kind === 'equipment') expect(EQUIPMENT[d.id], d.id).toBeTruthy();
     }
     // 반대 방향: 베이스/부품/방어구/장비 정의마다 아이템이 있다
-    for (const id of [...Object.keys(BASES), ...Object.keys(PARTS), ...Object.keys(ARMORS), ...Object.keys(EQUIPMENT)]) expect(ITEMS[id], id).toBeTruthy();
+    for (const id of [...Object.keys(BASES), ...Object.keys(PARTS), ...Object.keys(ARMORS), ...Object.keys(CONTAINERS), ...Object.keys(EQUIPMENT)]) expect(ITEMS[id], id).toBeTruthy();
   });
 
-  it('아이템 분류 7종이 모두 쓰인다', () => {
+  it('아이템 분류 7종 + 보관 장비가 모두 쓰인다', () => {
     const kinds = new Set(Object.values(ITEMS).map((d) => d.kind));
-    expect([...kinds].sort()).toEqual(['armor', 'equipment', 'equipment_part', 'material', 'sample', 'weapon_base', 'weapon_part']);
+    expect([...kinds].sort()).toEqual(['armor', 'container', 'equipment', 'equipment_part', 'material', 'sample', 'weapon_base', 'weapon_part']);
   });
 
   it('레시피: 산출물과 재료가 존재하고 노드 id 가 유효', () => {
@@ -96,7 +99,7 @@ describe('데이터 무결성', () => {
   it('시작 지급품이 창고에 다 들어가고, 큰 아이템도 가방/안전 보관함 크기 설정에 맞게 들어갈 수 있다', () => {
     const g = makeGrid(TUNING.hub.grid.stash.w, TUNING.hub.grid.stash.h);
     for (const it of START_ITEMS) expect(addItem(g, createItem(it.id, it.count ?? 1)), it.id).toBeNull();
-    const bag = makeGrid(TUNING.hub.grid.bag.w, TUNING.hub.grid.bag.h);
+    const bag = makeGrid(8, 6);
     for (const id of Object.keys(BASES)) expect(addItem(bag, createItem(id)), id).toBeNull(); // 가장 큰 무기도 가방에 들어간다
   });
 
@@ -120,5 +123,18 @@ describe('데이터 무결성', () => {
   it('C·D·E 는 레이드 미구현 표시, A·B 는 구현됨', () => {
     expect(BASES.momentum_launcher.implemented && BASES.em_coil.implemented).toBe(true);
     for (const id of ['flywheel_accumulator', 'mass_annihilator', 'tunneling_launcher'] as const) expect(BASES[id].implemented).toBe(false);
+  });
+
+  it('무기 칸 분류: 모든 베이스가 칸이 있고, 칸 4개(주 2·보조 1·근접 1)', () => {
+    expect(WEAPON_SLOTS.map((w) => w.cls)).toEqual(['primary', 'primary', 'secondary', 'melee']);
+    for (const b of Object.values(BASES)) expect(WEAPON_SLOTS.some((w) => w.cls === b.slotClass), b.id).toBe(true);
+    // 보조·근접 베이스는 허브 시작부터 만들 수 있다(기초 레시피)
+    for (const id of ['pocket_launcher', 'impact_blade']) expect(RECIPES.some((r) => r.out === id && !r.node), id).toBe(true);
+  });
+
+  it('보관 장비: 조끼·가방 각각 제작 가능하고 시작 지급품에 기본 가방이 있다', () => {
+    for (const slot of ['vest', 'backpack']) expect(Object.values(CONTAINERS).filter((c) => c.slot === slot).length, slot).toBeGreaterThanOrEqual(2);
+    for (const c of Object.values(CONTAINERS)) expect(RECIPES.some((r) => r.out === c.id), c.id).toBe(true);
+    expect(START_ITEMS.some((i) => CONTAINERS[i.id]?.slot === 'backpack')).toBe(true);
   });
 });

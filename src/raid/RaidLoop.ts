@@ -15,6 +15,8 @@ import { stepExtract } from './extractMath';
 import { MomentumLauncher } from '../weapons/MomentumLauncher';
 import { EmCoil } from '../weapons/EmCoil';
 import { PlaceholderWeapon } from '../weapons/PlaceholderWeapon';
+import { MeleeBlade } from '../weapons/MeleeBlade';
+import { armorList, carryGrids, weaponList } from '../hub/equip';
 import { ArcEffects } from '../weapons/ArcEffects';
 import type { Weapon } from '../weapons/Weapon';
 import { Projectiles } from '../weapons/Projectiles';
@@ -65,11 +67,12 @@ export async function startRaid(root: HTMLElement, save: HubSave, opts: { persis
   scene.add(camera); // 뷰모델이 카메라 자식이므로 씬에 포함
 
   // --- 출격 준비의 방어구(저항·속도 페널티) ---
-  const armorPieces = () => [session.armor.body, session.armor.aux].filter((x): x is NonNullable<typeof x> => !!x);
+  const armorPieces = () => armorList(session);
   if (armorPieces().length) player.armor = createArmorSystem(armorPieces);
 
   // 가방 격자를 탄 인벤토리로 직접 쓴다 → 사격 소모/전리품 습득이 곧바로 격자에 반영된다
-  const inventory = new Inventory(session.bag);
+  const carry = carryGrids(session.carry);
+  const inventory = new Inventory(carry);
   const startedAt = performance.now();
   let mobs: MobManager;
   const projectiles = new Projectiles(scene, world, player.body, () => mobs.targets());
@@ -78,10 +81,12 @@ export async function startRaid(root: HTMLElement, save: HubSave, opts: { persis
   const arcs = new ArcEffects(scene);
 
   // --- 장착한 무기들 (WPN 버튼/F 키로 순환 전환) ---
-  const states = session.weapons.map((w) => weaponStateOf(w));
+  const weaponInsts = weaponList(session);
+  const states = weaponInsts.map((w) => weaponStateOf(w));
   const makeWeapon = (i: number): Weapon => {
     const base = states[i].loadout.base;
     if (!BASES[base].implemented) return new PlaceholderWeapon(states[i]);
+    if (base === 'impact_blade') return new MeleeBlade(states[i], player, view, () => mobs.targets());
     return base === 'em_coil'
       ? new EmCoil(states[i], {
         world, player, view, arcs,
@@ -100,13 +105,19 @@ export async function startRaid(root: HTMLElement, save: HubSave, opts: { persis
     (window as any).__game = { player, gfx, input, world, get weapon() { return weapon; }, inventory, projectiles, gameWorld, mobs, arcs, scene, camera, states, save, session };
   }
 
+  const carrySections = () => [
+    { id: 'pockets', title: '주머니', grid: session.carry.pockets },
+    ...(session.carry.vest ? [{ id: 'vest', title: '조끼', grid: session.carry.vest }] : []),
+    ...(session.carry.backpack ? [{ id: 'backpack', title: '가방', grid: session.carry.backpack }] : []),
+  ];
+
   // --- 가방 화면(안전 보관함 이동): 열려 있는 동안 레이드 일시정지 ---
   let bagOpen = false;
   function openBag() {
     if (bagOpen || phase !== 'raid') return;
     bagOpen = true;
     document.exitPointerLock?.();
-    openBagOverlay(root, session.bag, save.safe, saveNow, () => { bagOpen = false; input.endFrame(); last = performance.now(); });
+    openBagOverlay(root, carrySections(), save.safe, saveNow, () => { bagOpen = false; input.endFrame(); last = performance.now(); });
   }
   const overlays = createOverlays(root, () => input.touch.enabled, () => input.touch.toggleDebug(), openBag);
 
@@ -131,7 +142,7 @@ export async function startRaid(root: HTMLElement, save: HubSave, opts: { persis
     document.exitPointerLock?.();
     const seconds = (performance.now() - startedAt) / 1000;
     // 레이드 중 마모를 아이템에 반영한 뒤 정산한다 (사망이면 어차피 손실)
-    session.weapons.forEach((w, i) => writeBackWeapon(w, states[i]));
+    weaponInsts.forEach((w, i) => writeBackWeapon(w, states[i]));
     let gained: Record<string, number> = {}, overflow = 0, lost: ReturnType<typeof settleDeath>['lost'] = [];
     if (outcome === 'dead') lost = settleDeath(save).lost; // 가방·장착 장비 손실, 안전 보관함 유지
     else { const r = settleExtract(save); gained = r.gained; overflow = r.overflow; } // 가방·장비·안전 보관함 → 창고(초과분은 입고 대기)
@@ -167,14 +178,14 @@ export async function startRaid(root: HTMLElement, save: HubSave, opts: { persis
       `HP ${Math.ceil(player.hp)}/${TUNING.player.maxHp}   몹 ${mobs.alive.length}/${mobs.mobs.length}  처치 ${mobs.kills}`,
       `speed ${player.velocity.length().toFixed(1)} m/s  ${player.grounded ? 'ground' : 'air'}  ${gfx.width}x${gfx.height}`,
       `내구도 ${dur.join(' | ')}${armor ? `   방어구 ${armor}` : ''}`,
-      `무기 ${cur + 1}/${weapons.length}${weapons.length > 1 ? ' (F/WPN 전환)' : ''}   가방 ${usedCells(session.bag)}/${session.bag.w * session.bag.h}칸 (B/BAG)${hudMsgUntil > performance.now() ? `   ${hudMsg}` : ''}`,
+      `무기 ${cur + 1}/${weapons.length}${weapons.length > 1 ? ' (F/WPN 전환)' : ''}   가방 ${carry.reduce((n, g) => n + usedCells(g), 0)}/${carry.reduce((n, g) => n + g.w * g.h, 0)}칸 (B/BAG)${hudMsgUntil > performance.now() ? `   ${hudMsg}` : ''}`,
       ...weapon.hudLines(),
       exitHud(),
     ].join('\n');
   }
 
   // 가방에 전부 들어갈 자리가 있을 때만 줍는다 (부분 습득 없음)
-  const canPick = (items: Record<string, number>) => canAddAll(session.bag, items);
+  const canPick = (items: Record<string, number>) => canAddAll(carry, items);
 
   renderer.setAnimationLoop((now) => {
     const dt = Math.min((now - last) / 1000, 0.05);
@@ -196,7 +207,7 @@ export async function startRaid(root: HTMLElement, save: HubSave, opts: { persis
       mobs.update(dt, player);
       const { picked, blocked } = gameWorld.loot.update(dt, player.position, canPick);
       for (const got of picked) {
-        for (const [id, n] of Object.entries(got)) pickUpToBag(session.bag, id, n);
+        for (const [id, n] of Object.entries(got)) pickUpToBag(carry, id, n);
         say(`+ ${Object.entries(got).map(([id, n]) => `${ITEMS[id]?.name ?? id}${n > 1 ? ` ${n}` : ''}`).join(', ')}`);
       }
       if (blocked) say('가방이 가득 참 (B 로 정리)');

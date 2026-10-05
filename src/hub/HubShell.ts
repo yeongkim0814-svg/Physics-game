@@ -2,6 +2,7 @@ import { ensureHubStyle, toast } from '../ui/hubStyle';
 import { onTap } from '../ui/tap';
 import { storage } from './storage';
 import { type HubSave } from './save';
+import { armorList, weaponList } from './equip';
 import { ensureEssentials, pendingCount, resolveJobs } from './state';
 
 export type TabId = 'home' | 'stash' | 'analyzer' | 'research' | 'workbench' | 'tree' | 'prep';
@@ -110,8 +111,8 @@ export function createHubShell(
   }
 
   function updateChrome() {
-    const w = save.prep.weapons.length;
-    status.textContent = (storage.available() ? '' : '⚠ 저장 불가(브라우저 차단) · ') + `출격 준비: 무기 ${w}${save.prep.armor.body || save.prep.armor.aux ? ' · 방어구' : ''}`;
+    const w = weaponList(save.prep).length;
+    status.textContent = (storage.available() ? '' : '⚠ 저장 불가(브라우저 차단) · ') + `출격 준비: 무기 ${w}${armorList(save.prep).length ? ' · 방어구' : ''}`;
     tabEls.get('prep')!.querySelector('.dot')?.remove();
     if (!w) return;
     const d = document.createElement('i');

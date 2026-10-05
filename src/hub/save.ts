@@ -1,9 +1,15 @@
 import { TUNING } from '../config/tuning';
 import { NODE_BY_ID } from '../data/knowledge';
 import { UPGRADE_BY_ID } from '../data/upgrades';
+import { ITEMS } from '../data/items';
+import { ARMORS as ARMORS_ } from '../data/armors';
 import { START_ITEMS } from '../data/startState';
 import { addItem, isValidInst, makeGrid, placeAt, canPlace, type Grid, type ItemInstance } from '../inventory/grid';
 import { createItem } from './gear';
+import { emptyEquip, type Carry, type Equip } from './equip';
+import { WEAPON_SLOTS } from '../data/weaponSlots';
+import { ARMOR_SLOTS } from '../data/armors';
+import { CONTAINER_SLOTS, CONTAINERS } from '../data/containers';
 
 /**
  * 허브 저장 데이터 (localStorage, v2). 시간 기반 작업은 타임스탬프(ms)로 저장 → 화면을 떠나거나 껐다 켜도 진행된다.
@@ -15,11 +21,8 @@ import { createItem } from './gear';
  */
 export const SAVE_KEY = 'physics-extraction-save-v2';
 
-export interface Equip {
-  weapons: ItemInstance[];
-  armor: { body?: ItemInstance; aux?: ItemInstance };
-}
-export interface PrepState extends Equip { bag: Grid }
+export type { Equip, Carry };
+export interface PrepState extends Equip { carry: Carry }
 export interface RaidSession extends PrepState { startedAt: number }
 
 export interface AnalysisJob { nodeId: string; startedAt: number; durationMs: number }
@@ -42,7 +45,8 @@ export interface HubSave {
 }
 
 const G = TUNING.hub.grid;
-export const emptyPrep = (): PrepState => ({ bag: makeGrid(G.bag.w, G.bag.h), weapons: [], armor: {} });
+export const emptyCarry = (): Carry => ({ pockets: makeGrid(G.pockets.w, G.pockets.h), vest: null, backpack: null });
+export const emptyPrep = (): PrepState => ({ ...emptyEquip(), carry: emptyCarry() });
 
 export function defaultSave(): HubSave {
   const save: HubSave = {
@@ -90,11 +94,27 @@ const validInst = (x: unknown): ItemInstance | undefined => (isValidInst(x) ? x 
 
 function rebuildEquip(raw: unknown): Equip {
   const r = isObj(raw) ? raw : {};
-  const armor = isObj(r.armor) ? r.armor : {};
-  return {
-    weapons: (Array.isArray(r.weapons) ? r.weapons : []).map(validInst).filter((x): x is ItemInstance => !!x).slice(0, TUNING.hub.weaponSlots),
-    armor: { body: validInst(armor.body), aux: validInst(armor.aux) },
-  };
+  const e = emptyEquip();
+  const w = isObj(r.weapons) ? r.weapons : {};
+  const a = isObj(r.armor) ? r.armor : {};
+  const c = isObj(r.containers) ? r.containers : {};
+  for (const s of WEAPON_SLOTS) { const i = validInst(w[s.id]); if (i && ITEMS[i.defId]?.kind === 'weapon_base') e.weapons[s.id] = i; }
+  for (const k of ARMOR_SLOTS) { const i = validInst(a[k]); if (i && ARMORS_[i.defId]?.slot === k) e.armor[k] = i; }
+  for (const k of CONTAINER_SLOTS) { const i = validInst(c[k]); if (i && CONTAINERS[i.defId]?.slot === k) e.containers[k] = i; }
+  return e;
+}
+
+/** 주머니 + 장착한 조끼/가방 크기의 격자를 복원 (장비가 없으면 격자도 없다. 장비가 사라졌다면 내용물은 overflow 로) */
+function rebuildCarry(raw: unknown, equip: Equip, overflow: ItemInstance[]): Carry {
+  const r = isObj(raw) ? raw : {};
+  const carry = emptyCarry();
+  carry.pockets = rebuildGrid(r.pockets, G.pockets.w, G.pockets.h, overflow);
+  for (const [slot, key] of [['vest', 'vest'], ['backpack', 'backpack']] as const) {
+    const def = equip.containers[slot] ? CONTAINERS[equip.containers[slot]!.defId] : undefined;
+    if (def) carry[key] = rebuildGrid(r[key], def.w, def.h, overflow);
+    else rebuildGrid(r[key], 99, 99, overflow); // 장비가 없는데 내용물이 있으면 잃지 않게 입고 대기로
+  }
+  return carry;
 }
 
 const num = (x: unknown, d = 0) => (typeof x === 'number' && Number.isFinite(x) ? x : d);
@@ -111,13 +131,15 @@ export function parseSave(raw: string | null): HubSave {
     const pending = rebuildGrid(r.pending, G.pending.w, G.pending.h, []);
     for (const o of overflow) addItem(pending, o);
     const prepRaw = isObj(r.prep) ? r.prep : {};
-    const prep: PrepState = { ...rebuildEquip(prepRaw), bag: rebuildGrid(prepRaw.bag, G.bag.w, G.bag.h, overflow) };
+    const prepEquip = rebuildEquip(prepRaw);
+    const prep: PrepState = { ...prepEquip, carry: rebuildCarry(prepRaw.carry, prepEquip, overflow) };
     for (const o of overflow.splice(0)) addItem(pending, o);
 
     let raid: RaidSession | null = null;
     if (isObj(r.raid)) {
       const o: ItemInstance[] = [];
-      raid = { ...rebuildEquip(r.raid), bag: rebuildGrid(r.raid.bag, G.bag.w, G.bag.h, o), startedAt: num(r.raid.startedAt) };
+      const re = rebuildEquip(r.raid);
+      raid = { ...re, carry: rebuildCarry(r.raid.carry, re, o), startedAt: num(r.raid.startedAt) };
     }
     const nodes: Record<string, number> = {};
     if (isObj(r.nodes)) for (const [k, v] of Object.entries(r.nodes)) if (NODE_BY_ID[k]) nodes[k] = num(v);

@@ -31,7 +31,7 @@ export interface BoardGrid {
    * 장비 칸(아이템 1개짜리 타일). 격자 데이터는 어댑터(큰 빈 Grid 하나에 (0,0) 고정)이고 화면은 한 타일로 그린다.
    * 이미 차 있는 칸에 다른 아이템을 놓으면 교체(기존 장비는 출발지로 돌아감). area 는 타일 배치 위치.
    */
-  slot?: { label: string; glyph: string; area: 'body' | 'aux' | 'w1' | 'w2' };
+  slot?: { label: string; glyph: string; area: 'helmet' | 'body' | 'vest' | 'backpack' | 'p1' | 'p2' | 'sec' | 'melee' };
 }
 
 export interface BoardOptions {
@@ -124,6 +124,8 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
       const occ = t.grid.placed[0];
       if (occ) { // 교체: 기존 장비가 출발지로 돌아갈 수 있어야 한다
         const sg = gridOf(s.gridId);
+        const out = t.canTake?.(occ.inst);
+        if (out) return { ok: false, reason: out };
         const back = sg.accepts?.(occ.inst, targetId);
         if (back) return { ok: false, reason: `교체 불가: ${back}` };
         if (!sg.slot && !findSpot(sg.grid, occ.inst, s.inst.uid)) return { ok: false, reason: '교체된 장비를 둘 공간이 없습니다' };

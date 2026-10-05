@@ -31,6 +31,10 @@ export const TUNING = {
     cameraKick: 0.018,     // 발사 시 시점 위로 튐 (rad)
     muzzleOffset: 0.6,     // 총구 위치 (눈에서 조준 방향으로 m)
   },
+  // 보조무기: 소형 사출기 = 운동량 사출기 대비 배율 (가볍고 반동 작음, 느리고 퍼짐 큼)
+  pocketLauncher: { projectileSpeedMul: 0.8, recoilMul: 0.55, spreadMul: 2, fireIntervalMul: 0.6 },
+  // 근접무기: 충격 블레이드. reach(m) 안, 시선 기준 coneDeg 안의 대상에 damage, interval(s) 간격
+  blade: { damage: 35, reach: 2.6, coneDeg: 70, interval: 0.55, durabilityCost: 1 },
   coil: {
     chargeTime: 1.5,       // 충전 1.0(=최대 위력)까지 걸리는 시간 (s)
     minCharge: 0.15,       // 이보다 적게 충전하고 놓으면 불발
@@ -56,9 +60,7 @@ export const TUNING = {
   // --- 2단계: 아지트(허브)·격자 인벤토리·연구 루프. 아이템/노드/레시피/개량 정의는 src/data/ 에 있다 ---
   hub: {
     /** 격자 크기 (칸). pendingH: 입고 초과분 임시 격자의 높이(충분히 크게) */
-    grid: { stash: { w: 10, h: 16 }, safe: { w: 2, h: 2 }, bag: { w: 8, h: 6 }, pending: { w: 10, h: 40 } },
-    /** 출격 때 들고 갈 수 있는 무기 수 (레이드에서 WPN 버튼으로 순환 전환) */
-    weaponSlots: 2,
+    grid: { stash: { w: 10, h: 16 }, safe: { w: 2, h: 2 }, pockets: { w: 4, h: 1 }, pending: { w: 10, h: 40 } },
     /** 분석·연구 시간 배율 (1 = 데이터 그대로, 0.1 = 10배 빠르게. 개발/튜닝용) */
     timeScale: 1,
     /** 샘플 변질(첫 버전은 꺼짐). 켜면 spoilSeconds 후 미분석 샘플이 'spoiled' 처리되도록 확장할 자리 */

@@ -2,6 +2,7 @@ import { NODES } from '../../data/knowledge';
 import { ITEMS } from '../../data/items';
 import { UPGRADE_BY_ID } from '../../data/upgrades';
 import { countOf, freeCells, allInstances } from '../../inventory/grid';
+import { weaponList } from '../equip';
 import { defaultSave } from '../save';
 import { analyzerTier, findItem } from '../state';
 import type { ScreenFactory } from '../HubShell';
@@ -49,7 +50,7 @@ export const homeScreen: ScreenFactory = (ctx) => {
       stat('지식 노드', `${unlocked}/${NODES.length}`),
       stat('창고 빈 칸', `${freeCells(s.stash)}/${s.stash.w * s.stash.h}`),
       stat('안전 보관함', `${allInstances(s.safe).length}개`),
-      stat('출격 준비', s.prep.weapons.length ? `무기 ${s.prep.weapons.length}` : '무기 없음'),
+      stat('출격 준비', weaponList(s.prep).length ? `무기 ${weaponList(s.prep).length}` : '무기 없음'),
       stat('레이드', `${s.stats.extracts}탈출 / ${s.stats.deaths}사망`),
     );
     el.appendChild(sum);
