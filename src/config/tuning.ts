@@ -31,13 +31,18 @@ export const TUNING = {
     muzzleOffset: 0.6,     // 총구 위치 (눈에서 조준 방향으로 m)
   },
   coil: {
-    chargeTime: 1.5, overchargeAt: 1.0,
-    maxDamage: 60, arcRange: 25,
-    spread: 0.03, leakDamageMul: 1, // 누전 피해 배율(부품이 줄임)
-    chainRadius: 6, chainFalloff: 0.7, chainMaxHops: 8,
-    insulatorDamageMul: 0.25,
-    waterLeakDps: 15, // 물웅덩이 위 서 있을 때 누전
-    wearOvercharge: 8, // 전방 슬롯 과충전 마모
+    chargeTime: 1.5,       // 충전 1.0(=최대 위력)까지 걸리는 시간 (s)
+    minCharge: 0.15,       // 이보다 적게 충전하고 놓으면 불발
+    overchargeAt: 1.0, overchargeMax: 1.5, // 이 이상 계속 쥐면 과충전(위력 ↑, 전방 마모 ↑), 최대치에서 자동 방출
+    maxDamage: 60, arcRange: 25, spread: 0.03,
+    durabilityCostPerShot: 1, // 발사당 베이스 내구도
+    wearOvercharge: 8,     // 최대 과충전 방출 시 전방 슬롯 마모 (비율 × 이 값 × 부품 wearRate)
+    // 전도체 연쇄: 구조물/물/금속 몹끼리는 chainRadius, 플레이어·절연·일반 몹은 contactRadius 안이어야 닿는다
+    chainRadius: 6, contactRadius: 2.5, snapRadius: 3, // snapRadius: 빔이 벽/바닥에 맞았을 때 근처 전도체로 이어붙이는 거리
+    chainFalloff: 0.7, chainMaxHops: 8,
+    insulatorDamageMul: 0.25, // 절연 몹 전기 피해 배율 (data/mobs.ts 가 사용)
+    leakDamageMul: 1,      // 누전(자기 피해) 배율 — 절연 피복이 줄인다
+    waterLeakDps: 15,      // 물웅덩이 위에서 충전 중일 때 초당 누전 피해 (충전량에 비례)
   },
   mobs: {
     radius: 0.4, height: 1.6,

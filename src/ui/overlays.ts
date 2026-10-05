@@ -24,6 +24,16 @@ export function createOverlays(root: HTMLElement, isTouch: () => boolean) {
     } catch { /* 지원 안 함/거부: 무시 */ }
   });
 
+  // 임시 무기 전환(장착 메뉴는 T9): URL 의 base 를 바꿔 다시 불러온다
+  const wpn = mk(`${BTN};top:8px;right:136px`, 'WPN');
+  wpn.addEventListener('click', () => {
+    const u = new URL(location.href);
+    const next = u.searchParams.get('base') === 'em_coil' ? 'momentum_launcher' : 'em_coil';
+    for (const k of ['front', 'rear', 'top']) u.searchParams.delete(k);
+    u.searchParams.set('base', next);
+    location.href = u.toString();
+  });
+
   let showFps: boolean = PERF.showFps;
   const fpsBtn = mk(`${BTN};top:8px;right:72px`, 'FPS');
   const fpsText = mk('position:fixed;z-index:20;top:44px;right:8px;font:12px monospace;color:#8f8;pointer-events:none', '');

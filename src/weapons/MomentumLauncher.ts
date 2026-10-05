@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import type { Input } from '../core/input';
 import type { WeaponState } from '../core/types';
 import { TUNING } from '../config/tuning';
@@ -9,6 +8,8 @@ import type { Inventory } from '../raid/inventory';
 import type { PlayerController } from '../player/PlayerController';
 import type { Projectiles } from './Projectiles';
 import type { ViewModel } from './ViewModel';
+import type { Weapon } from './Weapon';
+import { perturbDirection } from './aim';
 import {
   currentSpread, decayHeat, heatAfterShot, recoilDeltaV, recoilImpulse, rearWear,
 } from './launcherMath';
@@ -20,7 +21,7 @@ const L = TUNING.launcher;
  * 발사 = 재료 소모 → 투사체(질량 m, 속도 v) 사출 → 반대 방향으로 J = m·v·recoil·scale 임펄스.
  * 비용: 재료 소모 + 베이스 내구도, 마모: 후방 슬롯 부품에 반동 부하로 누적.
  */
-export class MomentumLauncher {
+export class MomentumLauncher implements Weapon {
   private cooldown = 0;
   private heat = 0;
   shots = 0;
@@ -42,6 +43,16 @@ export class MomentumLauncher {
     return currentSpread(stats.spreadBase, this.heat, stats.stability, L.spread.max);
   }
 
+  hudLines(): string[] {
+    const { stats } = computeStats(this.state);
+    const mat = MATERIALS[this.inventory.selected];
+    return [
+      `재료 ${mat.name} (${mat.mass}kg) x${this.inventory.count()}  [${Object.entries(this.inventory.materials).map(([k, v]) => `${k}:${v}`).join(' ')}]`,
+      `퍼짐 ${(this.spread * 57.3).toFixed(1)}deg  반동 Δv ${this.lastDeltaV.toFixed(1)} m/s  v0 ${stats.projectileSpeed.toFixed(0)}`,
+      this.status,
+    ];
+  }
+
   update(dt: number, input: Input) {
     this.heat = decayHeat(this.heat, L.spread.recover, dt);
     this.cooldown = Math.max(0, this.cooldown - dt);
@@ -59,7 +70,7 @@ export class MomentumLauncher {
 
     // 방향: 조준 + 퍼짐(원뿔 내 균일 분포). 반동은 실제 발사 방향의 반대
     const aim = this.player.aimDirection();
-    const dir = this.perturb(aim, currentSpread(stats.spreadBase, this.heat, stats.stability, L.spread.max));
+    const dir = perturbDirection(aim, currentSpread(stats.spreadBase, this.heat, stats.stability, L.spread.max));
     const origin = this.player.eyePosition().addScaledVector(dir, L.muzzleOffset);
     this.projectiles.spawn(origin, dir, stats.projectileSpeed, mat.mass, mat.color);
 
@@ -80,15 +91,5 @@ export class MomentumLauncher {
 
     this.cooldown = stats.fireInterval;
     this.shots++;
-  }
-
-  private perturb(dir: THREE.Vector3, angle: number) {
-    if (angle <= 0) return dir.clone();
-    const up = Math.abs(dir.y) > 0.99 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
-    const right = new THREE.Vector3().crossVectors(dir, up).normalize();
-    const realUp = new THREE.Vector3().crossVectors(right, dir);
-    const r = angle * Math.sqrt(Math.random());
-    const a = Math.random() * Math.PI * 2;
-    return dir.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(realUp, Math.sin(a) * r).normalize();
   }
 }

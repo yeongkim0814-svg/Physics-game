@@ -10,11 +10,13 @@ import { TUNING } from '../config/tuning';
 import { createOverlays } from '../ui/overlays';
 import { Inventory } from './inventory';
 import { MomentumLauncher } from '../weapons/MomentumLauncher';
+import { EmCoil } from '../weapons/EmCoil';
+import { ArcEffects } from '../weapons/ArcEffects';
+import type { Weapon } from '../weapons/Weapon';
 import { Projectiles } from '../weapons/Projectiles';
 import { ViewModel } from '../weapons/ViewModel';
 import { createWeaponState, computeStats } from '../data/loadout';
 import { loadoutFromUrl, START_MATERIALS } from '../data/startState';
-import { MATERIALS } from '../data/materials';
 import { BASES } from '../data/bases';
 import { PARTS } from '../data/parts';
 
@@ -50,9 +52,19 @@ export async function startRaid(root: HTMLElement) {
   let mobs: MobManager;
   const projectiles = new Projectiles(scene, world, player.body, () => mobs.targets());
   mobs = new MobManager(scene, world, gameWorld.loot, gameWorld.mobSpawns, PERF.mobCap);
-  const weaponState = createWeaponState(loadoutFromUrl(location.search));
-  const launcher = new MomentumLauncher(weaponState, player, projectiles, new ViewModel(camera), inventory);
-  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world, launcher, inventory, projectiles, gameWorld, mobs };
+  const loadout = loadoutFromUrl(location.search);
+  const weaponState = createWeaponState(loadout);
+  const view = new ViewModel(camera);
+  const arcs = new ArcEffects(scene);
+  const weapon: Weapon = loadout.base === 'em_coil'
+    ? new EmCoil(weaponState, {
+      world, player, view, arcs,
+      staticConductors: () => gameWorld.conductors,
+      mobTargets: () => mobs.alive,
+      isInWater: (x, z) => gameWorld.isInWater(x, z),
+    })
+    : new MomentumLauncher(weaponState, player, projectiles, view, inventory);
+  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world, weapon, inventory, projectiles, gameWorld, mobs, arcs };
 
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:5;color:#7fbf6a;font:12px monospace;white-space:pre;pointer-events:none';
@@ -83,9 +95,8 @@ export async function startRaid(root: HTMLElement) {
   }
 
   function weaponHud() {
-    const ws = launcher.state;
-    const { stats, inactiveParts } = computeStats(ws);
-    const mat = MATERIALS[inventory.selected];
+    const ws = weapon.state;
+    const { inactiveParts } = computeStats(ws);
     const dur = [`${BASES[ws.loadout.base].name} ${Math.ceil(ws.baseDurability)}`];
     for (const id of Object.keys(ws.partDurability)) {
       dur.push(`${PARTS[id].name} ${Math.ceil(ws.partDurability[id])}${inactiveParts.includes(id) ? '(정지)' : ''}`);
@@ -94,11 +105,9 @@ export async function startRaid(root: HTMLElement) {
     return [
       `HP ${Math.ceil(player.hp)}/${TUNING.player.maxHp}${player.dead ? '  DEAD (결과 처리는 T8)' : ''}   몹 ${mobs.alive.length}/${mobs.mobs.length}  처치 ${mobs.kills}`,
       `speed ${player.velocity.length().toFixed(1)} m/s  ${player.grounded ? 'ground' : 'air'}  ${gfx.width}x${gfx.height}`,
-      `재료 ${mat.name} (${mat.mass}kg) x${inventory.count()}  [${Object.entries(inventory.materials).map(([k, v]) => `${k}:${v}`).join(' ')}]`,
       `내구도 ${dur.join(' | ')}`,
-      `퍼짐 ${(launcher.spread * 57.3).toFixed(1)}deg  반동 Δv ${launcher.lastDeltaV.toFixed(1)} m/s  v0 ${stats.projectileSpeed.toFixed(0)}`,
+      ...weapon.hudLines(),
       exitHud(),
-      launcher.status,
     ].join('\n');
   }
 
@@ -106,7 +115,8 @@ export async function startRaid(root: HTMLElement) {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
 
-    launcher.update(dt, input);
+    weapon.update(dt, input);
+    arcs.update(dt);
     projectiles.update(dt);
     player.update(dt, input);
     mobs.update(dt, player);
