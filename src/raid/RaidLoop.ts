@@ -4,7 +4,9 @@ import { Input } from '../core/input';
 import { PlayerController } from '../player/PlayerController';
 import { RetroPipeline } from '../render/retro';
 import { GameWorld } from '../world/GameWorld';
+import { MobManager } from '../mobs/MobManager';
 import { VISUAL, PERF } from '../config/settings';
+import { TUNING } from '../config/tuning';
 import { createOverlays } from '../ui/overlays';
 import { Inventory } from './inventory';
 import { MomentumLauncher } from '../weapons/MomentumLauncher';
@@ -45,10 +47,12 @@ export async function startRaid(root: HTMLElement) {
 
   // 무기: 개발 중에는 URL 파라미터로 장착 상태 선택 (?base=&front=&rear=&top=). 메뉴는 T9
   const inventory = new Inventory({ ...START_MATERIALS });
-  const projectiles = new Projectiles(scene, world, player.body);
+  let mobs: MobManager;
+  const projectiles = new Projectiles(scene, world, player.body, () => mobs.targets());
+  mobs = new MobManager(scene, world, gameWorld.loot, gameWorld.mobSpawns, PERF.mobCap);
   const weaponState = createWeaponState(loadoutFromUrl(location.search));
   const launcher = new MomentumLauncher(weaponState, player, projectiles, new ViewModel(camera), inventory);
-  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world, launcher, inventory, projectiles, gameWorld };
+  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world, launcher, inventory, projectiles, gameWorld, mobs };
 
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:5;color:#7fbf6a;font:12px monospace;white-space:pre;pointer-events:none';
@@ -59,6 +63,11 @@ export async function startRaid(root: HTMLElement) {
 
   const overlays = createOverlays(root, () => input.touch.enabled);
   let last = performance.now(), frames = 0, accum = 0, cooldown = 3;
+
+  // 피격 연출(임시): 붉은 화면 번쩍임. 정식 HUD 는 T9
+  const hitFlash = document.createElement('div');
+  hitFlash.style.cssText = 'position:fixed;inset:0;z-index:4;pointer-events:none;background:#c0452e;opacity:0';
+  root.appendChild(hitFlash);
 
   function exitHud() {
     const e = gameWorld.extraction;
@@ -81,7 +90,9 @@ export async function startRaid(root: HTMLElement) {
     for (const id of Object.keys(ws.partDurability)) {
       dur.push(`${PARTS[id].name} ${Math.ceil(ws.partDurability[id])}${inactiveParts.includes(id) ? '(정지)' : ''}`);
     }
+    hitFlash.style.opacity = String(Math.max(0, 0.45 - (performance.now() / 1000 - player.lastHitAt)) * 1.2);
     return [
+      `HP ${Math.ceil(player.hp)}/${TUNING.player.maxHp}${player.dead ? '  DEAD (결과 처리는 T8)' : ''}   몹 ${mobs.alive.length}/${mobs.mobs.length}  처치 ${mobs.kills}`,
       `speed ${player.velocity.length().toFixed(1)} m/s  ${player.grounded ? 'ground' : 'air'}  ${gfx.width}x${gfx.height}`,
       `재료 ${mat.name} (${mat.mass}kg) x${inventory.count()}  [${Object.entries(inventory.materials).map(([k, v]) => `${k}:${v}`).join(' ')}]`,
       `내구도 ${dur.join(' | ')}`,
@@ -98,6 +109,7 @@ export async function startRaid(root: HTMLElement) {
     launcher.update(dt, input);
     projectiles.update(dt);
     player.update(dt, input);
+    mobs.update(dt, player);
     gameWorld.update(dt);
     for (const got of gameWorld.loot.update(dt, player.position)) {
       for (const [id, n] of Object.entries(got)) inventory.materials[id] = (inventory.materials[id] ?? 0) + n;

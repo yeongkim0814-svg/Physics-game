@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { RAPIER } from '../core/physics';
+import { moveCharacter } from '../core/characterMotor';
+import { fallDamage } from './damage';
 import type { Input } from '../core/input';
-import type { ImpulseTarget } from '../core/types';
+import type { Damageable, DamageSource, ImpulseTarget } from '../core/types';
 import { TUNING } from '../config/tuning';
 
 const P = TUNING.player;
@@ -11,9 +13,14 @@ const P = TUNING.player;
  * 반동 임펄스는 velocity 에 직접 더해진다: Δv = J / mass.
  * 공중 조작력(airAccel)이 낮아 반동으로 얻은 수평 운동량이 보존된다.
  */
-export class PlayerController implements ImpulseTarget {
+export class PlayerController implements ImpulseTarget, Damageable {
   readonly velocity = new THREE.Vector3();
   readonly position = new THREE.Vector3(); // 발 위치
+  hp: number = P.maxHp;
+  /** 사망 처리(리스폰/결과 화면)는 raid(T8)가 담당. 여기서는 상태만 둔다 */
+  dead = false;
+  /** 마지막으로 피해를 입은 시각(초, performance.now/1000) — 피격 연출용 */
+  lastHitAt = -999;
   yaw = 0;
   pitch = 0;
   grounded = false;
@@ -49,38 +56,12 @@ export class PlayerController implements ImpulseTarget {
     this.slideTimer = P.recoilSlideTime;
   }
 
-  /**
-   * 계단 오르기. Rapier 내장 autostep 은 이 캡슐/계단 조합에서 동작하지 않아 직접 구현:
-   * 수평 이동이 막히면 단차 높이만큼 띄워서 앞으로 갈 수 있는지 보고, 갈 수 있으면 올라선 뒤 바닥에 다시 붙인다.
-   */
-  private tryStepUp(
-    t: { x: number; y: number; z: number },
-    desired: { x: number; y: number; z: number },
-    m: { x: number; y: number; z: number },
-  ) {
-    const want = Math.hypot(desired.x, desired.z);
-    const got = Math.hypot(m.x, m.z);
-    if (want < 1e-4 || got > want * 0.5) return m;
-
-    // 이번 프레임 이동량만으론 캡슐이 단 모서리에 닿지 못하므로, 더 앞(stepProbe)까지 띄워서 가보고 올라설 높이를 구한다
-    const up = P.stepHeight;
-    const probe = Math.max(want, P.stepProbe);
-    const k = probe / want;
-    this.collider.setTranslation({ x: t.x, y: t.y + up, z: t.z });
-    this.controller.computeColliderMovement(this.collider, { x: desired.x * k, y: 0, z: desired.z * k });
-    const fwd = { ...this.controller.computedMovement() };
-    let result: typeof m | null = null;
-    if (Math.hypot(fwd.x, fwd.z) >= probe * 0.9) {
-      this.collider.setTranslation({ x: t.x + fwd.x, y: t.y + up, z: t.z + fwd.z });
-      this.controller.computeColliderMovement(this.collider, { x: 0, y: -(up + 0.02), z: 0 });
-      const dy = up + this.controller.computedMovement().y;
-      // 올라설 높이가 있고(>0.02) 착지 가능하면, 이번 프레임에는 올라서면서 이동량만큼만 전진
-      if (dy > 0.02 && this.controller.computedGrounded()) result = { x: desired.x, y: dy, z: desired.z };
-    }
-    // 원래 위치로 복구하고 grounded 상태가 원래 이동 기준이 되도록 재계산
-    this.collider.setTranslation(t);
-    this.controller.computeColliderMovement(this.collider, desired);
-    return result ?? { ...this.controller.computedMovement() };
+  /** 몹 공격, 낙하, 누전 등 모든 피해의 단일 진입점 */
+  takeDamage(amount: number, _source: DamageSource) {
+    if (this.dead || amount <= 0) return;
+    this.hp = Math.max(0, this.hp - amount);
+    this.lastHitAt = performance.now() / 1000;
+    if (this.hp <= 0) this.dead = true;
   }
 
   /** 발 위치로 순간이동 (리스폰/스폰용). 속도 초기화 */
@@ -162,9 +143,7 @@ export class PlayerController implements ImpulseTarget {
     // 충돌 해소 이동
     const desired = { x: this.velocity.x * dt, y: this.velocity.y * dt, z: this.velocity.z * dt };
     const t = this.body.translation();
-    this.controller.computeColliderMovement(this.collider, desired);
-    let m = { ...this.controller.computedMovement() };
-    if (this.grounded) m = this.tryStepUp(t, desired, m);
+    const m = moveCharacter(this.controller, this.collider, t, desired, this.grounded);
     this.body.setNextKinematicTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
     this.collider.setTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
 
@@ -183,6 +162,8 @@ export class PlayerController implements ImpulseTarget {
       this.grounded = this.controller.computedGrounded() && this.velocity.y <= 0;
       if (hitCeil) this.velocity.y = 0;
     }
+
+    if (this.landingSpeed > 0) this.takeDamage(fallDamage(this.landingSpeed, P.fallSafeSpeed, P.fallDamagePerSpeed), 'fall');
 
     this.position.set(t.x + m.x, t.y + m.y - P.height / 2, t.z + m.z);
     this.eyePosition(this.camera.position);

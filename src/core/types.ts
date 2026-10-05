@@ -46,7 +46,7 @@ export interface WeaponState {
 export interface Damageable {
   readonly position: THREE.Vector3;
   /** 투사체 판정 반경(m). 없으면 피격 불가 */
-  readonly radius?: number;
+  readonly hitRadius?: number;
   takeDamage(amount: number, source: DamageSource): void;
 }
 export type DamageSource = 'physical' | 'electric' | 'fall' | 'leak';
@@ -54,7 +54,7 @@ export type DamageSource = 'physical' | 'electric' | 'fall' | 'leak';
 /** 전도체 노드: 연쇄 계산 대상 (금속 몹, 금속 구조물, 물웅덩이 등) */
 export interface Conductor {
   readonly position: THREE.Vector3;
-  readonly kind: 'metal_mob' | 'metal_structure' | 'water' | 'player' | 'ally' | 'insulator_mob';
+  readonly kind: 'metal_mob' | 'metal_structure' | 'water' | 'player' | 'ally' | 'insulator_mob' | 'normal_mob';
   /** 전파 가능 여부. insulator_mob 은 false */
   readonly conducts: boolean;
   /** 이 반경 안의 다른 전도체로 전파 */
@@ -86,6 +86,8 @@ export interface MobDef {
   conducts: boolean;
   /** 받는 피해 배율 */
   damageMul: Record<'physical' | 'electric', number>;
+  /** 사망 시 드롭 {재료: [최소, 최대]} */
+  drop: Record<string, [number, number]>;
 }
 
 /** 사출기가 소모하는 재료(덩어리). 질량이 클수록 위력·반동이 크다 */
