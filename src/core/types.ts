@@ -1,4 +1,4 @@
-// 시스템 간 계약(contract). 이 파일 변경은 Claude 소유 — 변경 필요 시 docs/TASKS.md '계약 변경 요청'에 적을 것.
+// 시스템 간 계약(contract). 시스템 간 계약.
 import type * as THREE from 'three';
 
 export type SlotKind = 'front' | 'rear' | 'top' | 'sub';

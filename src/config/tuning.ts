@@ -3,6 +3,11 @@ export const TUNING = {
   world: { gravity: 20 }, // 점프감을 위해 9.8 보다 크게
   player: {
     mass: 70, moveSpeed: 6, jumpSpeed: 7, maxHp: 100,
+    radius: 0.35, height: 1.8, eyeHeight: 1.6,
+    groundAccel: 60,   // 지상: 목표속도로 수렴하는 가속도 (m/s^2)
+    groundFriction: 12, // 지상 입력 없을 때 감속
+    airAccel: 6,       // 공중 조작력. 낮을수록 반동으로 얻은 운동량이 보존됨
+    mouseSensitivity: 0.0022,
     chargeSlowMul: 0.35, // 코일 충전 중 이동속도 배율
     fallSafeSpeed: 12, fallDamagePerSpeed: 6,
   },

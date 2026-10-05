@@ -6,13 +6,13 @@ src/
   main.ts            부트스트랩 (raid 시작)
   core/types.ts      계약(인터페이스)  · core/{input,physics,events}.ts (T1)
   config/tuning.ts   모든 튜닝 수치
-  data/              bases.ts parts.ts mobs.ts + loadout 계산(스탯 합산)  [Codex]
+  data/              bases.ts parts.ts mobs.ts + loadout 계산(스탯 합산)
   player/            PlayerController(PointerLock, 이동, ImpulseTarget), 낙하 피해
   weapons/           WeaponSystem, MomentumLauncher, EmCoil, Durability, ConductorGraph
-  mobs/              Mob(금속/절연/일반), ChaseAI                         [Codex]
-  world/             MapBuilder(지형·물·금속), Extraction, LootDrop        [Codex]
+  mobs/              Mob(금속/절연/일반), ChaseAI
+  world/             MapBuilder(지형·물·금속), Extraction, LootDrop
   raid/              RaidLoop(상태기계), Persistence(손실 규칙), Menu 흐름
-  ui/                Hud, LoadoutMenu, EndScreen                           [Codex]
+  ui/                Hud, LoadoutMenu, EndScreen
 ```
 ## 핵심 시스템 경계
 - **스탯 계산**: `data` 의 `computeStats(loadout)` → base.stats + 부품 add/mul (내구도 0 부품은 제외, 베이스 0이면 전체 정지). weapons 는 결과만 사용
