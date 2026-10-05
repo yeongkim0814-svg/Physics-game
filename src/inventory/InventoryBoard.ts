@@ -4,7 +4,7 @@ import { describeItem } from '../hub/itemInfo';
 import { maxDurOf } from '../hub/gear';
 import { onTap } from '../ui/tap';
 import {
-  addItem, canMerge, canPlace, cloneInst, findPlaced, footprint, freeCells, itemAt, maxStack, newUid, placeAt, removeItem, sortGrid, splitStack,
+  addItem, canMerge, canPlace, cloneInst, findPlaced, findSpot, footprint, itemAt, maxStack, newUid, placeAt, removeItem, sortGrid, splitStack,
   usedCells, type Grid, type ItemInstance,
 } from './grid';
 
@@ -25,10 +25,19 @@ export interface BoardGrid {
   canTake?: (inst: ItemInstance) => string | null;
   /** 머리글 옆 보조 문구 */
   note?: string;
+  /** loadout 레이아웃에서 놓일 열 (기본 left) */
+  side?: 'left' | 'right';
+  /**
+   * 장비 칸(아이템 1개짜리 타일). 격자 데이터는 어댑터(큰 빈 Grid 하나에 (0,0) 고정)이고 화면은 한 타일로 그린다.
+   * 이미 차 있는 칸에 다른 아이템을 놓으면 교체(기존 장비는 출발지로 돌아감). area 는 타일 배치 위치.
+   */
+  slot?: { label: string; glyph: string; area: 'body' | 'aux' | 'w1' | 'w2' };
 }
 
 export interface BoardOptions {
   grids: BoardGrid[];
+  /** flat: 격자들을 나란히 / loadout: 왼쪽(장비 칸 + 가방·금고 섹션) | 오른쪽(창고) 2단 (Arena Breakout 식) */
+  layout?: 'flat' | 'loadout';
   onChange: () => void;
   /** 잠긴 아이템(연구 중 등): 사유 또는 null */
   locked?: (inst: ItemInstance) => string | null;
@@ -70,6 +79,14 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
   const itemEls = new Map<string, HTMLElement>();
 
   const gridOf = (id: string) => opts.grids.find((g) => g.id === id)!;
+  const isSlot = (id: string) => !!gridOf(id).slot;
+  /** (fx,fy) 칸의 아이템. 장비 칸은 타일 어디를 눌러도 그 아이템 */
+  const hitAt = (id: string, fx: number, fy: number) => (isSlot(id) ? gridOf(id).grid.placed[0] : itemAt(gridOf(id).grid, Math.floor(fx), Math.floor(fy)));
+  /** 장비 칸/격자에 아이템을 넣는다 (자리는 호출 전에 확인) */
+  function putIn(g: BoardGrid, inst: ItemInstance): boolean {
+    if (g.slot) { placeAt(g.grid, inst, 0, 0, false); return true; }
+    return !addItem(g.grid, inst);
+  }
   const selected = () => {
     if (!sel) return null;
     const p = findPlaced(gridOf(sel.gridId).grid, sel.uid);
@@ -99,6 +116,20 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
     if (!s) return { ok: false };
     const t = gridOf(targetId);
     const same = targetId === s.gridId;
+    if (t.slot) {
+      if (same) return { ok: true };
+      const why = t.accepts?.(s.inst, s.gridId);
+      if (why) return { ok: false, reason: why };
+      if (qty < s.inst.count) return { ok: false, reason: '장비 칸에는 1개만 넣을 수 있습니다' };
+      const occ = t.grid.placed[0];
+      if (occ) { // 교체: 기존 장비가 출발지로 돌아갈 수 있어야 한다
+        const sg = gridOf(s.gridId);
+        const back = sg.accepts?.(occ.inst, targetId);
+        if (back) return { ok: false, reason: `교체 불가: ${back}` };
+        if (!sg.slot && !findSpot(sg.grid, occ.inst, s.inst.uid)) return { ok: false, reason: '교체된 장비를 둘 공간이 없습니다' };
+      }
+      return { ok: true };
+    }
     if (!same) {
       const why = t.accepts?.(s.inst, s.gridId);
       if (why) return { ok: false, reason: why };
@@ -116,6 +147,19 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
     const ev = evaluate(targetId, x, y, rot);
     if (!ev.ok) { if (ev.reason) say(ev.reason); return false; }
     const src = gridOf(s.gridId), dst = gridOf(targetId);
+    if (dst.slot) {
+      if (s.gridId === targetId) { select(null); return true; }
+      const occ = dst.grid.placed[0];
+      removeItem(src.grid, s.inst.uid);
+      if (occ) { removeItem(dst.grid, occ.inst.uid); putIn(src, occ.inst); }
+      placeAt(dst.grid, s.inst, 0, 0, false);
+      sel = null;
+      opts.onSelect?.(null);
+      ghost = null;
+      opts.onChange();
+      render();
+      return true;
+    }
     if (qty >= s.inst.count) {
       if (s.gridId === targetId) { s.placed.x = x; s.placed.y = y; s.placed.rot = rot; }
       else { removeItem(src.grid, s.inst.uid); placeAt(dst.grid, s.inst, x, y, rot); }
@@ -135,6 +179,12 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
   /** n 개를 dest 격자로 보낸다(스택 합치기 포함, 못 들어간 만큼은 출발 격자에 남는다). 실제 이동한 수량 반환 */
   function transfer(srcId: string, inst: ItemInstance, n: number, destId: string): number {
     const src = gridOf(srcId), dst = gridOf(destId);
+    if (dst.slot) { // 비어 있는 장비 칸에 1개
+      if (dst.grid.placed.length || inst.count > 1) return 0;
+      removeItem(src.grid, inst.uid);
+      placeAt(dst.grid, inst, 0, 0, false);
+      return 1;
+    }
     const want = Math.min(n, inst.count);
     // 스택은 새 uid 로 나눠 보낸다. 상태가 있는 단일 아이템(무기 등)은 uid 를 유지해야 연구 잠금 등이 따라간다
     const moving: ItemInstance = { ...cloneInst(inst), uid: maxStack(inst) > 1 ? newUid() : inst.uid, count: want };
@@ -148,9 +198,11 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
   function autoPlace() {
     const s = selected();
     if (!s) return;
-    const targets = opts.grids.filter((g) => g.id !== s.gridId);
+    // 장비 칸(비어 있는 것)이 맞으면 먼저, 그다음 다른 격자들
+    const targets = opts.grids.filter((g) => g.id !== s.gridId && !(g.slot && isSlot(s.gridId))).sort((a, b) => Number(!!b.slot) - Number(!!a.slot));
     let reason = '';
     for (const t of targets) {
+      if (t.slot && t.grid.placed.length) continue;
       const why = t.accepts?.(s.inst, s.gridId);
       if (why) { reason = why; continue; }
       const moved = transfer(s.gridId, s.inst, qty, t.id);
@@ -192,7 +244,8 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
   const cellAt = (gridId: string, cx: number, cy: number) => {
     const ge = gridEls.get(gridId)!;
     const r = ge.el.getBoundingClientRect();
-    return { fx: (cx - r.left) / ge.cell, fy: (cy - r.top) / ge.cell, inside: cx >= r.left && cx < r.right && cy >= r.top && cy < r.bottom };
+    const cell = isSlot(gridId) ? Math.max(1, r.width) : ge.cell; // 장비 칸은 타일 폭 기준(항상 (0,0))
+    return { fx: (cx - r.left) / cell, fy: (cy - r.top) / cell, inside: cx >= r.left && cx < r.right && cy >= r.top && cy < r.bottom };
   };
   const gridAtPoint = (cx: number, cy: number): string | null => {
     for (const id of gridEls.keys()) if (cellAt(id, cx, cy).inside) return id;
@@ -200,6 +253,7 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
   };
   /** 포인터가 선택 아이템의 중심에 오도록 한 좌상단 칸 */
   function anchorFor(gridId: string, cx: number, cy: number) {
+    if (isSlot(gridId)) return { x: 0, y: 0 };
     const s = selected()!;
     const f = footprint(s.inst, selRot);
     const c = cellAt(gridId, cx, cy);
@@ -219,14 +273,16 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
     const f = footprint(s.inst, selRot);
     const d = document.createElement('div');
     d.className = `inv-ghost ${ghost.ok ? 'ok' : 'no'}`;
-    d.style.cssText = `left:${ghost.x * ge.cell}px;top:${ghost.y * ge.cell}px;width:${f.w * ge.cell}px;height:${f.h * ge.cell}px`;
+    d.style.cssText = isSlot(ghost.gridId)
+      ? 'left:0;top:0;width:100%;height:100%'
+      : `left:${ghost.x * ge.cell}px;top:${ghost.y * ge.cell}px;width:${f.w * ge.cell}px;height:${f.h * ge.cell}px`;
     ge.el.appendChild(d);
   }
 
   function onDown(gridId: string, e: PointerEvent) {
     e.stopPropagation();
     const c = cellAt(gridId, e.clientX, e.clientY);
-    const hit = itemAt(gridOf(gridId).grid, Math.floor(c.fx), Math.floor(c.fy));
+    const hit = hitAt(gridId, c.fx, c.fy);
     down = { gridId, pointerId: e.pointerId, x: e.clientX, y: e.clientY, uid: hit?.inst.uid, dragging: false };
     try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* 합성 이벤트 등 */ }
   }
@@ -286,7 +342,7 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
   function tap(gridId: string, e: PointerEvent) {
     const g = gridOf(gridId);
     const c = cellAt(gridId, e.clientX, e.clientY);
-    const hit = itemAt(g.grid, Math.floor(c.fx), Math.floor(c.fy));
+    const hit = hitAt(gridId, c.fx, c.fy);
     const s = selected();
 
     if (hit && s && hit.inst.uid === s.inst.uid) {
@@ -298,6 +354,7 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
       select(null);
       return;
     }
+    if (g.slot && s && s.inst.uid !== hit?.inst.uid) { commit(gridId, 0, 0, false); return; } // 장비 칸 탭: 장착/교체
     if (hit && s && canMerge(s.inst, hit.inst) && hit.inst.uid !== s.inst.uid) {
       // 같은 종류 스택 위 탭 → 합치기
       const why = gridId !== s.gridId ? g.accepts?.(s.inst, s.gridId) : null;
@@ -384,7 +441,7 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
     tools.appendChild(info);
     if (s) {
       tools.appendChild(btn('회전 ↻', rotate, '', itemDef(s.inst.defId).w === itemDef(s.inst.defId).h));
-      const others = opts.grids.filter((g) => g.id !== s.gridId);
+      const others = opts.grids.filter((g) => g.id !== s.gridId && !(g.slot && isSlot(s.gridId)));
       tools.appendChild(btn(others.length ? `자동 배치 → ${others.map((g) => g.title).join('/')}` : '자동 배치', autoPlace, '', !others.length));
       if (itemDef(s.inst.defId).stack > 1 && s.inst.count > 1) tools.appendChild(qtyStepper(s.inst));
       if (opts.allowDiscard) tools.appendChild(btn(discardArmed ? '정말 버리기?' : '버리기', discard, 'danger'));
@@ -393,23 +450,66 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
     }
     el.appendChild(tools);
 
-    // 격자들
-    const wrap = document.createElement('div');
-    wrap.className = 'inv-grids';
-    for (const bg of opts.grids) {
-      const cell = cellSizeFor(bg.grid);
+    // 격자/장비 칸들
+    const bind = (node: HTMLElement, id: string) => {
+      node.addEventListener('pointerdown', (e) => onDown(id, e));
+      node.addEventListener('pointermove', (e) => onMove(id, e));
+      node.addEventListener('pointerup', (e) => onUp(id, e));
+      node.addEventListener('pointercancel', () => { down = null; ghost = null; drawGhost(); });
+      node.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !down) { ghost = null; drawGhost(); } });
+    };
+
+    /** 장비 칸 타일: 모서리에 이름표, 비어 있으면 흐린 실루엣 글자, 차 있으면 아이템이 타일을 채운다 */
+    const slotTile = (bg: BoardGrid) => {
+      const tile = document.createElement('div');
+      tile.className = `inv-slot a-${bg.slot!.area}`;
+      tile.style.touchAction = 'none';
+      const label = document.createElement('div');
+      label.className = 'lbl';
+      label.textContent = bg.slot!.label;
+      tile.appendChild(label);
+      const occ = bg.grid.placed[0];
+      if (occ) {
+        const d = itemDef(occ.inst.defId);
+        const box = document.createElement('div');
+        box.className = `inv-item fill${sel?.uid === occ.inst.uid ? ' sel' : ''}${lockReason(bg.id, occ.inst) ? ' lock' : ''}`;
+        box.style.background = hex(d.color);
+        box.textContent = d.name;
+        const max = maxDurOf(occ.inst);
+        if (max) {
+          const ratio = Math.max(0, Math.min(1, (occ.inst.dur ?? 0) / max));
+          const bar = document.createElement('div');
+          bar.className = 'dur';
+          bar.innerHTML = `<i style="width:${ratio * 100}%;${ratio < 0.25 ? 'background:var(--bad)' : ''}"></i>`;
+          box.appendChild(bar);
+        }
+        itemEls.set(occ.inst.uid, box);
+        tile.appendChild(box);
+      } else {
+        const g = document.createElement('div');
+        g.className = 'ghostchar';
+        g.textContent = bg.slot!.glyph;
+        tile.appendChild(g);
+      }
+      bind(tile, bg.id);
+      return tile;
+    };
+
+    const gridPanel = (bg: BoardGrid, fit: boolean) => {
+      const cell = fit ? cellSizeFor(bg.grid) : UI.cellPx;
       const panel = document.createElement('div');
       panel.className = 'inv-panel';
       const head = document.createElement('div');
       head.className = 'inv-head';
       const used = usedCells(bg.grid);
-      head.innerHTML = `<span>${bg.title}</span><span class="dim">${used}/${bg.grid.w * bg.grid.h}칸 · 빈 ${freeCells(bg.grid)}</span>${bg.note ? `<span class="dim">${bg.note}</span>` : ''}<span class="sp"></span>`;
+      head.innerHTML = `<span>${bg.title}</span><span class="dim">${used}/${bg.grid.w * bg.grid.h}칸</span>${bg.note ? `<span class="dim">${bg.note}</span>` : ''}<span class="sp"></span>`;
       head.appendChild(btn('정렬', () => { say(sortGrid(bg.grid) ? `${bg.title} 정렬` : '정렬할 공간이 부족합니다'); opts.onChange(); select(null); }));
       panel.appendChild(head);
       const scroll = document.createElement('div');
       scroll.className = 'inv-scroll';
-      scroll.style.maxHeight = `${innerHeight - UI.boardReservePx + 6}px`;
-      const needScroll = cell * bg.grid.h > innerHeight - UI.boardReservePx + 2;
+      const limit = innerHeight - UI.boardReservePx + 6;
+      if (fit) scroll.style.maxHeight = `${limit}px`;
+      const needScroll = fit && cell * bg.grid.h > limit - 4;
       const ge = document.createElement('div');
       ge.className = 'inv-grid drag';
       ge.style.cssText = `width:${bg.grid.w * cell}px;height:${bg.grid.h * cell}px;--cell:${cell}px;touch-action:${needScroll ? 'pan-y' : 'none'}`;
@@ -418,15 +518,39 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
         itemEls.set(p.inst.uid, ie);
         ge.appendChild(ie);
       }
-      ge.addEventListener('pointerdown', (e) => onDown(bg.id, e));
-      ge.addEventListener('pointermove', (e) => onMove(bg.id, e));
-      ge.addEventListener('pointerup', (e) => onUp(bg.id, e));
-      ge.addEventListener('pointercancel', () => { down = null; ghost = null; drawGhost(); });
-      ge.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !down) { ghost = null; drawGhost(); } });
+      bind(ge, bg.id);
       scroll.appendChild(ge);
       panel.appendChild(scroll);
-      wrap.appendChild(panel);
       gridEls.set(bg.id, { el: ge, cell });
+      return panel;
+    };
+
+    const wrap = document.createElement('div');
+    wrap.className = 'inv-grids';
+    if (opts.layout === 'loadout') {
+      wrap.classList.add('loadout');
+      const left = document.createElement('div');
+      left.className = 'inv-col left';
+      const right = document.createElement('div');
+      right.className = 'inv-col right';
+      const slots = opts.grids.filter((g) => g.slot);
+      if (slots.length) {
+        const block = document.createElement('div');
+        block.className = 'inv-slots';
+        for (const bg of slots) {
+          const tile = slotTile(bg);
+          block.appendChild(tile);
+          gridEls.set(bg.id, { el: tile, cell: Math.max(1, tile.offsetWidth || 120) });
+        }
+        const spare = document.createElement('div');
+        spare.className = 'inv-slot a-spare';
+        block.appendChild(spare);
+        left.appendChild(block);
+      }
+      for (const bg of opts.grids.filter((g) => !g.slot)) (bg.side === 'right' ? right : left).appendChild(gridPanel(bg, bg.side === 'right'));
+      wrap.append(left, right);
+    } else {
+      for (const bg of opts.grids) wrap.appendChild(bg.slot ? slotTile(bg) : gridPanel(bg, true));
     }
     el.appendChild(wrap);
   }
