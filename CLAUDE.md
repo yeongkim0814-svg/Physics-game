@@ -1,6 +1,6 @@
 # CLAUDE.md — 물리 스킬 익스트랙션 게임 웹 3D 프로토타입 (1단계)
 
-스펙 원문 `docs/SPEC.md` · 구조 `docs/ARCHITECTURE.md` · 작업 보드 `docs/TASKS.md` · 모델 운용 `docs/WORKFLOW.md`
+스펙 원문 `docs/SPEC.md` + 추가 지시 `docs/SPEC_ADDENDUM.md`(충돌 시 우선) · 구조 `docs/ARCHITECTURE.md` · 작업 보드 `docs/TASKS.md` · 모델 운용 `docs/WORKFLOW.md`
 사용자(한국어)는 원리 중심·간결·핵심 빠짐없는 설명을 선호. 마지막에 튜닝 수치/한계를 정리한다.
 
 ## 명령
@@ -8,9 +8,11 @@
 
 ## 코드 규칙
 - TypeScript strict. 외부 에셋 없음(기본 도형+단색). 사운드 없음
-- **매직넘버 금지**: 수치는 `src/config/tuning.ts`, 무기·부품·몹 정의는 `src/data/`
+- **매직넘버 금지**: 게임플레이 수치는 `src/config/tuning.ts`, 비주얼/성능/터치는 `src/config/settings.ts`, 무기·부품·몹 정의는 `src/data/`
 - 시스템 간 통신은 `src/core/types.ts` 인터페이스로 (구체 클래스 직접 의존 최소화)
 - 물리: Rapier(`@dimforge/rapier3d-compat`, `await RAPIER.init()` 필요)
+- 입력은 `core/input.ts` 의 통합 API(moveX/Y, lookDX/DY, fire, jumpPressed…)만 사용. 키/터치 직접 참조 금지
+- 렌더링은 `render/` 의 PS1 재질(`createPS1Material`)만 사용 (일반 Three 재질 금지: 안개·스냅·양자화가 빠짐). 적/전도체/탈출 지점은 `CUES` 발광색으로 식별성 확보
 - 범위 제외: 멀티플레이, 지식트리, 아지트, 부전공 효과, 사운드
 
 ## 작업 규칙

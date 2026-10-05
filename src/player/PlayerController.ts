@@ -47,6 +47,14 @@ export class PlayerController implements ImpulseTarget {
     if (impulse.y > 0) this.grounded = false; // 위로 쏘아 올려지면 즉시 공중 처리
   }
 
+  /** 발 위치로 순간이동 (리스폰/스폰용). 속도 초기화 */
+  teleport(x: number, y: number, z: number) {
+    this.body.setTranslation({ x, y: y + P.height / 2, z }, true);
+    this.collider.setTranslation({ x, y: y + P.height / 2, z });
+    this.position.set(x, y, z);
+    this.velocity.set(0, 0, 0);
+  }
+
   /** 조준 방향(카메라 전방) */
   aimDirection(out = new THREE.Vector3()) {
     return out.set(0, 0, -1).applyEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
@@ -57,19 +65,20 @@ export class PlayerController implements ImpulseTarget {
 
   update(dt: number, input: Input) {
     // 시점
-    this.yaw -= input.mouseDX * P.mouseSensitivity;
-    this.pitch = THREE.MathUtils.clamp(this.pitch - input.mouseDY * P.mouseSensitivity, -1.5, 1.5);
+    this.yaw -= input.lookDX * P.mouseSensitivity;
+    this.pitch = THREE.MathUtils.clamp(this.pitch - input.lookDY * P.mouseSensitivity, -1.5, 1.5);
 
-    // 입력 → 목표 수평 속도
-    const f = (input.down('KeyW') ? 1 : 0) - (input.down('KeyS') ? 1 : 0);
-    const r = (input.down('KeyD') ? 1 : 0) - (input.down('KeyA') ? 1 : 0);
+    // 입력 → 목표 수평 속도 (아날로그: 조이스틱은 기울기에 비례)
+    const f = input.moveY;
+    const r = input.moveX;
     const wish = new THREE.Vector3(
       -Math.sin(this.yaw) * f + Math.cos(this.yaw) * r,
       0,
       -Math.cos(this.yaw) * f - Math.sin(this.yaw) * r,
     );
-    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(P.moveSpeed * this.speedMul);
-    const hasInput = wish.lengthSq() > 0;
+    if (wish.lengthSq() > 1) wish.normalize();
+    wish.multiplyScalar(P.moveSpeed * this.speedMul);
+    const hasInput = wish.lengthSq() > 1e-6;
 
     const hv = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
     if (this.grounded) {
@@ -93,7 +102,7 @@ export class PlayerController implements ImpulseTarget {
     this.velocity.x = hv.x;
     this.velocity.z = hv.z;
 
-    if (this.grounded && input.justPressed('Space')) {
+    if (this.grounded && input.jumpPressed) {
       this.velocity.y = P.jumpSpeed;
       this.grounded = false;
     }

@@ -12,6 +12,7 @@ src/
   mobs/              Mob(금속/절연/일반), ChaseAI
   world/             MapBuilder(지형·물·금속), Extraction, LootDrop
   raid/              RaidLoop(상태기계), Persistence(손실 규칙), Menu 흐름
+  render/            PS1Renderer(저해상도 타깃+후처리), materials(정점 스냅·어파인·안개), textures(절차 생성)
   ui/                Hud, LoadoutMenu, EndScreen
 ```
 ## 핵심 시스템 경계
