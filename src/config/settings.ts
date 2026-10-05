@@ -1,51 +1,42 @@
 // 비주얼·입력·성능 설정. 게임플레이 수치는 tuning.ts, 이쪽은 "보이고 조작되는 방식"만 다룬다.
 
-/** 가독성 단서 색 (어두운 안개 속에서도 구분되어야 하는 것들). emissive 로 안개에 묻히지 않게 쓴다 */
-export const CUES = {
-  enemy: 0xff4a2e,
-  metal: 0x5cc8ff,      // 금속 전도체
-  water: 0x2f7dff,      // 물웅덩이
-  electric: 0xe8f8ff,   // 전기 연쇄 (가장 밝게)
-  exit: 0x4dff88,       // 탈출 지점
-  hazard: 0xffd23c,     // 위험 구역
-} as const;
-
 export const VISUAL = {
   fov: 75,
-  /** 내부 렌더 해상도(가로). 세로는 화면 비율로 결정. 낮출수록 거칠고 빠르다 */
-  internalWidth: 400,
-  minInternalWidth: 240,
-  /** 정점 스냅: true 면 정점을 내부 픽셀 격자(snapPixels 배수)에 맞춰 떨림 효과 */
+  /** 내부 렌더 해상도(세로). 가로는 화면 비율로 결정 (270 → 16:9 에서 480×270). 낮출수록 거칠고 빠르다 */
+  internalHeight: 270,
+  minInternalHeight: 160,
+  camera: { near: 0.1, far: 120 },
+  /** 정점 스냅: 정점을 내부 픽셀 격자(snapPixels 배수)에 맞춰 PS1 특유의 떨림 */
   vertexSnap: true,
   snapPixels: 1,
-  /** 어파인 텍스처 왜곡(큰 면이 가까울 때 텍스처가 휘어 보임) */
-  affineTexture: true,
-  /** 절차 생성 텍스처 한 변 픽셀 수 (16~64) */
+  /** 절차 생성 텍스처 한 변 픽셀 수 (16~64) / 텍스처 1타일이 덮는 월드 길이(m) */
   textureSize: 32,
-  /** 텍스처 1타일이 덮는 월드 길이(m) */
   textureTileMeters: 2,
-  /** 후처리: 색 양자화 + 디더 + 노이즈. PERF.postprocess 로 끌 수 있음 */
-  colorLevels: 32,      // 채널당 단계 (32 = PS1 15bit)
-  ditherStrength: 1,
-  noiseStrength: 0.045,
-  fog: { color: 0x161d22, near: 6, far: 70 },
-  lighting: {
-    ambient: 0x8a949c,
-    sun: 0xd0d8e0,
-    sunDir: [0.4, 0.8, 0.3] as [number, number, number],
+  /** 후처리 5단계 (PERF.postprocess 로 전체 on/off). 강도는 여기서 튜닝 */
+  post: {
+    edge: 0.62, edgeLo: 0.09, edgeHi: 0.22, // 깊이 윤곽선: 어두워지는 정도 / smoothstep 임계값
+    saturation: 0.75,                       // 채도 유지 비율 (낮을수록 탁함)
+    contrast: 1.14,
+    tint: [1.0, 0.985, 0.8] as [number, number, number], // 올리브-노랑 색조
+    black: 0.2,                           // 검정 최소값 (완전한 검정 방지)
+    vignette: 0.4,
+    grain: 0.01,                            // 프레임마다 변하는 그레인
+    grainSpeed: 12,
+    scanline: 0.05,
+    levels: 16,                             // 채널당 양자화 단계 (4x4 바이어 디더)
   },
+  fog: { color: 0x20241a, near: 8, far: 70 },
+  lighting: { ambient: 0xd0d4c0, sun: 0xfffef8, sunDir: [0.4, 0.8, 0.3] as [number, number, number] },
 } as const;
 
 export const PERF = {
-  /** 캔버스 해상도 배율 상한 (내부 해상도와 별개로 최종 확대 패스에 적용) */
-  pixelRatioCap: 1,
   mobCap: 12,
   postprocess: true,
   showFps: false,
   /** FPS 가 낮으면 내부 해상도를 자동으로 낮춘다 */
   autoResolution: true,
   targetFps: 45,
-  autoResolutionStep: 0.85,
+  autoResolutionStep: 0.8,
 } as const;
 
 export const TOUCH = {
