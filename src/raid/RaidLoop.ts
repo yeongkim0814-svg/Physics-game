@@ -109,7 +109,7 @@ export async function startRaid(root: HTMLElement) {
   if (import.meta.env.DEV) {
     (window as any).__game = { player, gfx, input, world, weapon, inventory, projectiles, gameWorld, mobs, arcs, scene, camera, states, get persistent() { return persistent; } };
   }
-  const overlays = createOverlays(root, () => input.touch.enabled);
+  const overlays = createOverlays(root, () => input.touch.enabled, () => input.touch.toggleDebug());
 
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:5;color:#7fbf6a;font:12px monospace;white-space:pre;pointer-events:none';

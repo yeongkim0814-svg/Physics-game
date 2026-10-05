@@ -54,14 +54,20 @@ export const TOUCH = {
     swap:     { right: 250, bottom: 40,  size: 64,  label: 'AMMO' }, // 재료 전환
   },
   buttonOpacity: 0.45,
+  /** 버튼 적중 여유(px). 엄지가 버튼 가장자리를 살짝 벗어나도 눌린 것으로 본다 */
+  buttonSlop: 10,
+  /** 놓친 pointerup 복구 시 손가락 위치 허용 오차(px) */
+  reconcileTolerance: 100,
   /**
-   * 전력질주 잠금: 조이스틱 시작점에서 위로 반경의 engage 배 이상 앞으로 밀면 즉시 잠긴다.
-   * 잠기면 조이스틱 손잡이가 시작점 위 engage 거리의 지정 위치(잠금 아이콘 자리)에 고정된다.
-   * 해제: 왼쪽(조이스틱) 영역을 다시 터치. engage > 1 이라 평소 최대 전진(반경 1.0)으로는 잠기지 않는다.
+   * 전력질주 잠금 (PUBG/Arena Breakout 방식): 조이스틱을 끝(림)까지 밀면 조이스틱 위쪽에 잠금 아이콘이 나타나고,
+   * 손가락을 그 아이콘까지 끌어올리면 잠긴다. 잠기면 손잡이가 아이콘 자리에 고정되고 손을 떼도 전력질주가 유지된다.
+   * 해제: 왼쪽(조이스틱) 영역을 다시 터치.
    */
   sprint: {
-    engage: 1.5,  // 시작점에서 손가락까지 거리(반경 대비)
-    coneDeg: 35,  // 정면(위)에서 좌우로 이 각도 안
+    // 불변식: iconDistance·반경 − (iconSize/2 + triggerSlop) > 반경 (림 끝까지 밀어도 아이콘 판정에 닿지 않아야 평소 달리기로 잠기지 않는다. touchMath.test 가 검증)
+    iconDistance: 1.6, // 아이콘 위치: 조이스틱 시작점 위로 반경의 몇 배
+    iconSize: 52,      // 아이콘 지름(px)
+    triggerSlop: 6,    // 아이콘 가장자리에서 이만큼 안쪽으로 들어와도 잠금(px)
     vibrateMs: 25,
   },
 } as const;
