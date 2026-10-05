@@ -45,6 +45,8 @@ export interface WeaponState {
 /** 플레이어/몹/구조물이 전기·피해를 받는 공통 인터페이스 */
 export interface Damageable {
   readonly position: THREE.Vector3;
+  /** 투사체 판정 반경(m). 없으면 피격 불가 */
+  readonly radius?: number;
   takeDamage(amount: number, source: DamageSource): void;
 }
 export type DamageSource = 'physical' | 'electric' | 'fall' | 'leak';
@@ -84,4 +86,13 @@ export interface MobDef {
   conducts: boolean;
   /** 받는 피해 배율 */
   damageMul: Record<'physical' | 'electric', number>;
+}
+
+/** 사출기가 소모하는 재료(덩어리). 질량이 클수록 위력·반동이 크다 */
+export interface MaterialDef {
+  id: string;
+  name: string;
+  /** 덩어리 1개 질량 (kg) */
+  mass: number;
+  color: number;
 }

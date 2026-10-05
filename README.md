@@ -64,3 +64,15 @@ npm run check   # 타입체크 + 테스트 + 빌드
 - **정점 조명**: 큰 면이 평평하게 밝기가 일정할 수 있습니다. PS1 특성입니다.
 - **깊이 윤곽선 거짓양성**: 기울어진 면(경사로 등)에서 윤곽선이 나타날 수 있습니다. `edgeLo`/`edgeHi` 임계값 조정으로 줄일 수 있습니다.
 - 비네팅으로 인한 모서리 어두워짐: `vignette` 값을 0에 가깝게 하면 없어집니다.
+
+## 사출기 튜닝 가이드 (T3)
+모두 `src/config/tuning.ts` 의 `launcher` / `player`. 반동 Δv = m·v·recoil·recoilScale / 플레이어질량 (현재 고철 8.6, 슬래그 4.3, 주괴 17.1 m/s).
+- `recoilScale`(7.5): 반동 체감의 최우선 수치. 1.0 = 현실 운동량 보존(체감 거의 없음)
+- `fireInterval`(0.4): 연사 간격. Δv 가 `중력×간격`(≈8 m/s)보다 크면 연사로 계속 상승, 작으면 활강. 고철이 거의 호버링이 되는 지점
+- `player.recoilSlideTime`(0.45) / `slideFrictionMul`(0.08): 지상 반동 가속이 이어지는 정도
+- `player.airAccel`(6): 공중 조작력. 낮을수록 반동 운동량이 보존됨
+- `projectileGravity`(12), `spread.*`, `cameraKick`: 탄도/연사 퍼짐/시점 튐
+- 비용: `materialsPerShot`, `durabilityCostPerShot`, `wearPerRecoil`. 재료 질량은 `src/data/materials.ts`
+- 개발 테스트: `?rear=damping_spring&top=scope` 등 URL 파라미터로 부품 장착. 재료 전환 Q / AMMO 버튼
+
+**알려진 한계**: 낙하 피해·HP 가 아직 없어 주괴 연사로 100m 이상 올라가도 위험 부담이 없다(T8 에서 낙하 피해 연결). 실기기 조작감(터치 FIRE+JUMP 동시)은 미검증.

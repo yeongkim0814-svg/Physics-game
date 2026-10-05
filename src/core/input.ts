@@ -50,6 +50,7 @@ export class Input {
   get fire() { return (this.locked && this.mouseButtons.has(0)) || this.touch.fireHeld; }
   get fireClicked() { return (this.locked && this.mouseClicks.has(0)) || this.touch.fireClicked; }
   get jumpPressed() { return this.pressed.has('Space') || this.touch.jumpPressed; }
+  get swapPressed() { return this.pressed.has('KeyQ') || this.touch.swapPressed; }
   get interactPressed() { return this.pressed.has('KeyE') || this.touch.interactPressed; }
   /** 디버그/토글용 키 */
   justPressed(code: string) { return this.pressed.has(code); }

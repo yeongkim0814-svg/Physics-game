@@ -7,6 +7,15 @@ import { lambert, COL, CUES } from '../render/palette';
 import { createBoxGeometryWithUV } from '../render/boxGeometry';
 import { VISUAL, PERF } from '../config/settings';
 import { createOverlays } from '../ui/overlays';
+import { Inventory } from './inventory';
+import { MomentumLauncher } from '../weapons/MomentumLauncher';
+import { Projectiles } from '../weapons/Projectiles';
+import { ViewModel } from '../weapons/ViewModel';
+import { createWeaponState, computeStats } from '../data/loadout';
+import { loadoutFromUrl, START_MATERIALS } from '../data/startState';
+import { MATERIALS } from '../data/materials';
+import { BASES } from '../data/bases';
+import { PARTS } from '../data/parts';
 
 export async function startRaid(root: HTMLElement) {
   const world = await createPhysics();
@@ -58,7 +67,14 @@ export async function startRaid(root: HTMLElement) {
   scene.add(exit);
 
   const player = new PlayerController(world, camera, new THREE.Vector3(0, 1, 6));
-  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world };
+  scene.add(camera); // 뷰모델이 카메라 자식이므로 씬에 포함
+
+  // 무기: 개발 중에는 URL 파라미터로 장착 상태 선택 (?base=&front=&rear=&top=). 메뉴는 T9
+  const inventory = new Inventory({ ...START_MATERIALS });
+  const projectiles = new Projectiles(scene, world, player.body);
+  const weaponState = createWeaponState(loadoutFromUrl(location.search));
+  const launcher = new MomentumLauncher(weaponState, player, projectiles, new ViewModel(camera), inventory);
+  if (import.meta.env.DEV) (window as any).__game = { player, gfx, input: null, world, launcher, inventory, projectiles };
 
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:5;color:#7fbf6a;font:12px monospace;white-space:pre;pointer-events:none';
@@ -70,10 +86,29 @@ export async function startRaid(root: HTMLElement) {
   const overlays = createOverlays(root, () => input.touch.enabled);
   let last = performance.now(), frames = 0, accum = 0, cooldown = 3;
 
+  function weaponHud() {
+    const ws = launcher.state;
+    const { stats, inactiveParts } = computeStats(ws);
+    const mat = MATERIALS[inventory.selected];
+    const dur = [`${BASES[ws.loadout.base].name} ${Math.ceil(ws.baseDurability)}`];
+    for (const id of Object.keys(ws.partDurability)) {
+      dur.push(`${PARTS[id].name} ${Math.ceil(ws.partDurability[id])}${inactiveParts.includes(id) ? '(정지)' : ''}`);
+    }
+    return [
+      `speed ${player.velocity.length().toFixed(1)} m/s  ${player.grounded ? 'ground' : 'air'}  ${gfx.width}x${gfx.height}`,
+      `재료 ${mat.name} (${mat.mass}kg) x${inventory.count()}  [${Object.entries(inventory.materials).map(([k, v]) => `${k}:${v}`).join(' ')}]`,
+      `내구도 ${dur.join(' | ')}`,
+      `퍼짐 ${(launcher.spread * 57.3).toFixed(1)}deg  반동 Δv ${launcher.lastDeltaV.toFixed(1)} m/s  v0 ${stats.projectileSpeed.toFixed(0)}`,
+      launcher.status,
+    ].join('\n');
+  }
+
   renderer.setAnimationLoop((now) => {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
 
+    launcher.update(dt, input);
+    projectiles.update(dt);
     player.update(dt, input);
     world.step();
     gfx.render(scene, camera, now / 1000);
@@ -93,9 +128,7 @@ export async function startRaid(root: HTMLElement) {
     }
     overlays.updateOrientation();
 
-    hud.textContent = input.active
-      ? `speed ${player.velocity.length().toFixed(1)} m/s  ${player.grounded ? 'ground' : 'air'}  ${gfx.width}×${gfx.height}`
-      : '클릭 또는 터치로 시작';
+    hud.textContent = input.active ? weaponHud() : '클릭 또는 터치로 시작';
     input.endFrame();
   });
 }

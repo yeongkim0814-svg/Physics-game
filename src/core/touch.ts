@@ -24,6 +24,7 @@ export class TouchControls {
   fireClicked = false;
   jumpPressed = false;
   interactPressed = false;
+  swapPressed = false;
 
   private layer: HTMLDivElement;
   private base: HTMLDivElement;
@@ -84,6 +85,7 @@ export class TouchControls {
       b.style.background = 'rgba(255,255,255,0.6)';
       if (id === 'fire') { this.fireHeld = true; this.fireClicked = true; }
       else if (id === 'jump') this.jumpPressed = true;
+      else if (id === 'swap') this.swapPressed = true;
       else this.interactPressed = true;
     };
     const release = (e: PointerEvent) => {
@@ -150,6 +152,6 @@ export class TouchControls {
 
   endFrame() {
     this.lookDX = this.lookDY = 0;
-    this.fireClicked = this.jumpPressed = this.interactPressed = false;
+    this.fireClicked = this.jumpPressed = this.interactPressed = this.swapPressed = false;
   }
 }

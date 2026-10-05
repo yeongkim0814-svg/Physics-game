@@ -50,6 +50,7 @@ export const TOUCH = {
     fire:     { right: 28,  bottom: 40,  size: 104, label: 'FIRE' },
     jump:     { right: 150, bottom: 120, size: 84,  label: 'JUMP' },
     interact: { right: 150, bottom: 24,  size: 72,  label: 'USE' },
+    swap:     { right: 250, bottom: 40,  size: 64,  label: 'AMMO' }, // 재료 전환
   },
   buttonOpacity: 0.45,
 } as const;

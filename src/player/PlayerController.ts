@@ -21,8 +21,10 @@ export class PlayerController implements ImpulseTarget {
   landingSpeed = 0;
   /** 외부 시스템(코일 충전 등)이 설정하는 이동속도 배율 */
   speedMul = 1;
+  /** 반동을 받은 뒤 남은 미끄러짐 시간 (지면 마찰 약화) */
+  private slideTimer = 0;
 
-  private body: RAPIER.RigidBody;
+  readonly body: RAPIER.RigidBody;
   private collider: RAPIER.Collider;
   private controller: RAPIER.KinematicCharacterController;
   private halfCyl = (P.height - 2 * P.radius) / 2;
@@ -45,6 +47,7 @@ export class PlayerController implements ImpulseTarget {
   applyImpulse(impulse: THREE.Vector3) {
     this.velocity.addScaledVector(impulse, 1 / P.mass);
     if (impulse.y > 0) this.grounded = false; // 위로 쏘아 올려지면 즉시 공중 처리
+    this.slideTimer = P.recoilSlideTime;
   }
 
   /** 발 위치로 순간이동 (리스폰/스폰용). 속도 초기화 */
@@ -53,6 +56,12 @@ export class PlayerController implements ImpulseTarget {
     this.collider.setTranslation({ x, y: y + P.height / 2, z });
     this.position.set(x, y, z);
     this.velocity.set(0, 0, 0);
+  }
+
+  /** 발사 반동 등으로 시점이 튐 (rad). pitch 는 위쪽(+) */
+  kick(pitch: number, yaw: number) {
+    this.pitch = THREE.MathUtils.clamp(this.pitch + pitch, -1.5, 1.5);
+    this.yaw += yaw;
   }
 
   /** 조준 방향(카메라 전방) */
@@ -81,7 +90,10 @@ export class PlayerController implements ImpulseTarget {
     const hasInput = wish.lengthSq() > 1e-6;
 
     const hv = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);
-    if (this.grounded) {
+    // 반동 직후에는 지면에 있어도 공중 규칙(운동량 보존) + 약한 마찰을 적용
+    const sliding = this.slideTimer > 0;
+    this.slideTimer = Math.max(0, this.slideTimer - dt);
+    if (this.grounded && !sliding) {
       if (hasInput) {
         // 목표 속도 쪽으로 수렴 (초과 속도도 감속시킴)
         const diff = wish.clone().sub(hv);
@@ -91,12 +103,18 @@ export class PlayerController implements ImpulseTarget {
         const sp = hv.length();
         hv.multiplyScalar(sp > 0 ? Math.max(0, sp - P.groundFriction * dt) / sp : 0);
       }
-    } else if (hasInput) {
-      // 공중: 현재 속도가 목표 속도 이상인 방향으로는 가속하지 않는다 (운동량 보존)
-      const along = hv.dot(wish) / wish.length();
-      if (along < wish.length()) {
-        const add = Math.min(P.airAccel * dt, wish.length() - along);
-        hv.addScaledVector(wish.clone().normalize(), add);
+    } else {
+      if (this.grounded) {
+        const sp = hv.length();
+        hv.multiplyScalar(sp > 0 ? Math.max(0, sp - P.groundFriction * P.slideFrictionMul * dt) / sp : 0);
+      }
+      if (hasInput) {
+        // 현재 속도가 목표 속도 이상인 방향으로는 가속하지 않는다 (운동량 보존)
+        const along = hv.dot(wish) / wish.length();
+        if (along < wish.length()) {
+          const add = Math.min(P.airAccel * dt, wish.length() - along);
+          hv.addScaledVector(wish.clone().normalize(), add);
+        }
       }
     }
     this.velocity.x = hv.x;

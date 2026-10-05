@@ -14,11 +14,12 @@ export const BASES: Record<BaseId, BaseDef> = {
     stats: {
       ...common,
       projectileSpeed: L.projectileSpeed,
-      recoil: L.recoilScale,
+      recoil: 1, // 배율(부품이 곱함). 절대 세기는 TUNING.launcher.recoilScale
       spreadBase: L.spread.base,
       spreadPerShot: L.spread.perShot,
       spreadRecover: L.spread.recover,
-      materialMassPerShot: L.materialMassPerShot,
+      fireInterval: L.fireInterval,
+      materialsPerShot: L.materialsPerShot,
       durabilityCostPerShot: L.durabilityCostPerShot,
       wearPerRecoil: L.wearPerRecoil,
     },
