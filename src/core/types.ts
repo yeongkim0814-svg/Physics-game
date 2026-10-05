@@ -5,7 +5,7 @@ export type SlotKind = 'front' | 'rear' | 'top' | 'sub';
 export type BaseId = 'momentum_launcher' | 'em_coil';
 export type MobKind = 'metal' | 'insulator' | 'normal';
 
-/** 모든 수치 보정은 스탯 키-값으로 합산된다. 키 목록은 config/stats.ts 참고. */
+/** 모든 수치 보정은 스탯 키-값으로 합산된다. 키 목록은 data/bases.ts 참고. 'Mul' 로 끝나는 키는 기본값 1, 나머지는 0. */
 export type StatMods = Partial<Record<string, number>>;
 
 export interface PartDef {
@@ -72,3 +72,16 @@ export interface Persistent {
 }
 
 export type RaidResult = 'extracted' | 'dead';
+
+export interface MobDef {
+  id: MobKind;
+  name: string;
+  maxHp: number;
+  speed: number;
+  meleeDamage: number;
+  color: number;
+  /** 전기를 전파하는가 (금속만 true) */
+  conducts: boolean;
+  /** 받는 피해 배율 */
+  damageMul: Record<'physical' | 'electric', number>;
+}

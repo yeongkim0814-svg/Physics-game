@@ -22,6 +22,7 @@ export const TUNING = {
   coil: {
     chargeTime: 1.5, overchargeAt: 1.0,
     maxDamage: 60, arcRange: 25,
+    spread: 0.03, leakDamageMul: 1, // 누전 피해 배율(부품이 줄임)
     chainRadius: 6, chainFalloff: 0.7, chainMaxHops: 8,
     insulatorDamageMul: 0.25,
     waterLeakDps: 15, // 물웅덩이 위 서 있을 때 누전
