@@ -2,7 +2,10 @@
 import type * as THREE from 'three';
 
 export type SlotKind = 'front' | 'rear' | 'top' | 'sub';
-export type BaseId = 'momentum_launcher' | 'em_coil';
+/** A·B 는 레이드에서 동작. C·D·E 는 데이터/허브 해금 흐름만 있고 레이드에서는 placeholder (BaseDef.implemented) */
+export type BaseId =
+  | 'momentum_launcher' | 'em_coil'
+  | 'flywheel_accumulator' | 'mass_annihilator' | 'tunneling_launcher';
 export type MobKind = 'metal' | 'insulator' | 'normal';
 
 /** 모든 수치 보정은 스탯 키-값으로 합산된다. 키 목록은 data/bases.ts 참고. 'Mul' 로 끝나는 키는 기본값 1, 나머지는 0. */
@@ -25,6 +28,8 @@ export interface PartDef {
 export interface BaseDef {
   id: BaseId;
   name: string;
+  /** false 면 레이드에서 placeholder 무기로 대체된다 (이번 범위 밖) */
+  implemented: boolean;
   maxDurability: number;
   stats: Record<string, number>;
 }
@@ -40,6 +45,8 @@ export interface WeaponState {
   baseDurability: number;
   partDurability: Record<string, number>; // partId -> 현재 내구도
   charge: number; // 0..1 (코일)
+  /** 연구대 개량이 더하는 스탯 보정 (베이스+활성 부품 개량 합산). computeStats 가 부품 효과와 같은 식으로 합산 */
+  bonus?: { add?: StatMods; mul?: StatMods };
 }
 
 /** 플레이어/몹/구조물이 전기·피해를 받는 공통 인터페이스 */

@@ -53,6 +53,32 @@ export const TUNING = {
     extractHold: 1.0,   // 탈출 지점 안에서 버텨야 하는 시간 (s). 0 이면 도달 즉시 성공
     extractDecay: 2.0,  // 지점을 벗어났을 때 진행도가 줄어드는 배율
   },
+  // --- 2단계: 아지트(허브)·격자 인벤토리·연구 루프. 아이템/노드/레시피/개량 정의는 src/data/ 에 있다 ---
+  hub: {
+    /** 격자 크기 (칸). pendingH: 입고 초과분 임시 격자의 높이(충분히 크게) */
+    grid: { stash: { w: 10, h: 16 }, safe: { w: 2, h: 2 }, bag: { w: 8, h: 6 }, pending: { w: 10, h: 40 } },
+    /** 출격 때 들고 갈 수 있는 무기 수 (레이드에서 WPN 버튼으로 순환 전환) */
+    weaponSlots: 2,
+    /** 분석·연구 시간 배율 (1 = 데이터 그대로, 0.1 = 10배 빠르게. 개발/튜닝용) */
+    timeScale: 1,
+    /** 샘플 변질(첫 버전은 꺼짐). 켜면 spoilSeconds 후 미분석 샘플이 'spoiled' 처리되도록 확장할 자리 */
+    sampleSpoil: { enabled: false, spoilSeconds: 86400 },
+    /** 수리: 부족한 내구도 durPerScrap 당 고철 1개. 내구도 0(파손) 수리는 추가 재료가 든다 */
+    repair: { durPerScrap: 20, brokenSurcharge: { ingot: 1 } as Record<string, number> },
+    /** 방어구: 피해 종류 → 저항 종류. 열 저항은 현재 레이드에 열 피해가 없어 정의만 있다 */
+    armor: {
+      resistOf: { physical: 'impact', fall: 'impact', electric: 'electric', leak: 'electric' } as Record<string, 'impact' | 'electric' | 'thermal'>,
+      wearPerDamage: 0.6,  // 받은 (경감 전) 피해 1당 방어구 내구도 감소
+      minSpeedMul: 0.5,    // 이동속도 페널티 하한
+    },
+    /** 격자 UI */
+    ui: {
+      cellPx: 36,          // 칸 한 변(px). 태블릿 터치 기준
+      dragThreshold: 8,    // 이 거리(px) 넘게 움직이면 드래그로 본다
+      tapConfirm: false,   // true: 첫 탭은 미리보기만, 같은 자리 두 번째 탭에서 배치
+      messageMs: 2200,
+    },
+  },
   mobs: {
     radius: 0.4, height: 1.6,
     hitRadius: 0.8,        // 투사체/빔 판정 구 반경 (몸통 중심). 캡슐 반경보다 커야 투사체가 먼저 맞는다

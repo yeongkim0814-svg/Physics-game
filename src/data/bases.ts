@@ -10,6 +10,7 @@ export const BASES: Record<BaseId, BaseDef> = {
   momentum_launcher: {
     id: 'momentum_launcher',
     name: '운동량 사출기',
+    implemented: true,
     maxDurability: 200,
     stats: {
       ...common,
@@ -27,6 +28,7 @@ export const BASES: Record<BaseId, BaseDef> = {
   em_coil: {
     id: 'em_coil',
     name: '전자기 코일',
+    implemented: true,
     maxDurability: 200,
     stats: {
       ...common,
@@ -47,5 +49,18 @@ export const BASES: Record<BaseId, BaseDef> = {
       wearOvercharge: C.wearOvercharge,
       waterLeakDps: C.waterLeakDps,
     },
+  },
+  // --- C·D·E: 데이터 정의 + 아지트 해금 흐름까지. 레이드 동작은 placeholder (이번 범위 밖) ---
+  flywheel_accumulator: {
+    id: 'flywheel_accumulator', name: '플라이휠 축적기', implemented: false, maxDurability: 220,
+    stats: { ...common, spinUpTime: 3, storedEnergyMax: 100 },
+  },
+  mass_annihilator: {
+    id: 'mass_annihilator', name: '질량 소멸기', implemented: false, maxDurability: 180,
+    stats: { ...common, massToEnergy: 1, beamDamage: 60 },
+  },
+  tunneling_launcher: {
+    id: 'tunneling_launcher', name: '터널링 사출기', implemented: false, maxDurability: 160,
+    stats: { ...common, tunnelProbability: 0.3, projectileSpeed: 60 },
   },
 };

@@ -15,3 +15,14 @@ export function loadoutFromUrl(search: string): Loadout {
   }
   return validateLoadout(l).length === 0 ? l : START_LOADOUT;
 }
+
+/** 허브 새 게임 시작 지급품(창고). 기초 분석기 1개는 필수(닭과 달걀 방지: 샘플을 분석할 수단) */
+export const START_ITEMS: { id: string; count?: number }[] = [
+  { id: 'momentum_launcher' },
+  { id: 'analyzer_1' },
+  { id: 'scrap_vest' },
+  { id: 'slag', count: START_MATERIALS.slag },
+  { id: 'scrap', count: START_MATERIALS.scrap },
+  { id: 'ingot', count: START_MATERIALS.ingot },
+  { id: 'copper_wire', count: 6 },
+];

@@ -61,6 +61,8 @@ export function computeStats(state: WeaponState): WeaponStats {
     for (const [k, v] of Object.entries(def.effects.add ?? {})) adds[k] = (adds[k] ?? 0) + v!;
     for (const [k, v] of Object.entries(def.effects.mul ?? {})) muls[k] = (muls[k] ?? 1) * v!;
   }
+  for (const [k, v] of Object.entries(state.bonus?.add ?? {})) adds[k] = (adds[k] ?? 0) + v!;
+  for (const [k, v] of Object.entries(state.bonus?.mul ?? {})) muls[k] = (muls[k] ?? 1) * v!;
   for (const k of new Set([...Object.keys(adds), ...Object.keys(muls)])) {
     const start = stats[k] ?? (isMul(k) ? 1 : 0);
     stats[k] = (start + (adds[k] ?? 0)) * (muls[k] ?? 1);
