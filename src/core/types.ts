@@ -69,22 +69,17 @@ export interface Conductor {
   shock(damage: number): void;
 }
 
+/** 플레이어가 입은 방어구(레이드 중 저항·이동속도 페널티·마모). 피해는 종류별 저항으로 줄고 방어구 내구도가 닳는다 */
+export interface ArmorSystem {
+  /** 경감 후 피해를 돌려주고 방어구를 마모시킨다 */
+  absorb(amount: number, source: DamageSource): number;
+  /** 이동속도 배율 (파손된 방어구는 효과 정지) */
+  speedMul(): number;
+}
+
 /** 반동 임펄스를 받을 수 있는 대상(플레이어) */
 export interface ImpulseTarget {
   applyImpulse(impulse: THREE.Vector3): void;
-}
-
-/** 보관/소지 중인 무기: 장착 구성 + 내구도 (레이드 간 유지) */
-export interface StoredWeapon {
-  loadout: Loadout;
-  baseDurability: number;
-  partDurability: Record<string, number>;
-}
-
-/** 영속 데이터. stash=안전 보관함(사망해도 유지), carried=소지품(레이드 중에만 존재, 사망 시 손실) */
-export interface Persistent {
-  stash: { weapons: StoredWeapon[]; materials: Record<string, number> };
-  carried: { weapons: StoredWeapon[]; materials: Record<string, number> };
 }
 
 export type RaidResult = 'extracted' | 'dead';

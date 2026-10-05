@@ -347,8 +347,9 @@ export function ensureEssentials(s: HubSave): boolean {
 
 /** 어디에도 무기 베이스가 없으면 운동량 사출기 1개를 창고(안 되면 입고 대기)에 지급 */
 export function ensureStarterWeapon(s: HubSave) {
-  const grids = [s.stash, s.safe, s.prep.bag, s.pending];
-  const has = grids.some((g) => allInstances(g).some(isWeaponBase)) || s.prep.weapons.length > 0;
+  const grids = [s.stash, s.safe, s.prep.bag, s.pending, ...(s.raid ? [s.raid.bag] : [])];
+  // 진행 중인 레이드에 들고 간 무기도 "있는 것"으로 센다 (아니면 출격 직후마다 보급 무기가 공짜로 생긴다)
+  const has = grids.some((g) => allInstances(g).some(isWeaponBase)) || s.prep.weapons.length > 0 || (s.raid?.weapons.length ?? 0) > 0;
   if (has) return false;
   const w = createItem('momentum_launcher');
   if (addItem(s.stash, w)) addItem(s.pending, w);
@@ -363,6 +364,12 @@ export function discardPending(s: HubSave, uid: string): boolean {
 }
 
 // ======================= 레이드 가방 편의 =======================
+/** 아이템 맵({id: 수량})이 격자에 전부 들어가는가 (격자는 바꾸지 않는다) */
+export function canAddAll(g: Grid, items: Record<string, number>): boolean {
+  const probe: Grid = { w: g.w, h: g.h, placed: JSON.parse(JSON.stringify(g.placed)) };
+  return Object.entries(items).every(([id, n]) => !addItem(probe, createItem(id, n, { found: true })));
+}
+
 /** 레이드 중 획득 아이템을 가방에 넣는다 (found 표시). 공간이 없으면 아무것도 넣지 않고 false */
 export function pickUpToBag(bag: Grid, defId: string, count: number): boolean {
   const snap = gridSnapshot(bag);

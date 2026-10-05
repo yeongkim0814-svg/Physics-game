@@ -64,6 +64,8 @@ export class Input {
   /** 데스크톱: Shift 를 누르는 동안 / 터치: 조이스틱 y 가 start 이상이거나 자동 전력질주 중 */
   get sprint() { return this.key('ShiftLeft') + this.key('ShiftRight') > 0 || this.touch.sprinting; }
   get swapPressed() { return this.pressed.has('KeyQ') || this.touch.swapPressed; }
+  /** 무기 전환 (데스크톱 F / 터치 WPN) */
+  get weaponPressed() { return this.pressed.has('KeyF') || this.touch.weaponPressed; }
   get interactPressed() { return this.pressed.has('KeyE'); }
   /** 디버그/토글용 키 */
   justPressed(code: string) { return this.pressed.has(code); }

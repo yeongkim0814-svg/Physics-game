@@ -52,6 +52,7 @@ export const TOUCH = {
     fire:     { right: 28,  bottom: 40,  size: 104, label: 'FIRE' },
     jump:     { right: 150, bottom: 120, size: 84,  label: 'JUMP' },
     swap:     { right: 250, bottom: 40,  size: 64,  label: 'AMMO' }, // 재료 전환
+    weapon:   { right: 250, bottom: 120, size: 64,  label: 'WPN' },  // 장착한 무기 전환
   },
   buttonOpacity: 0.45,
   /** 버튼 적중 여유(px). 엄지가 버튼 가장자리를 살짝 벗어나도 눌린 것으로 본다 */

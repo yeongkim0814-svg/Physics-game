@@ -9,41 +9,35 @@ import { VISUAL, PERF } from '../config/settings';
 import { TUNING } from '../config/tuning';
 import { createOverlays } from '../ui/overlays';
 import { showEndScreen } from '../ui/EndScreen';
-import { showSelectScreen } from '../ui/SelectScreen';
-// import { makeHudText, makeLootText } from '../ui/hud'; // T9 에서 사용
+import { openBagOverlay } from '../ui/BagOverlay';
 import { Inventory } from './inventory';
-import {
-  SAVE_KEY, beginRaid, diffMaterials, loadPersistent, repairWeapons, serialize,
-  settleDeath, settleExtract, toState, toStored,
-} from './persistence';
 import { stepExtract } from './extractMath';
 import { MomentumLauncher } from '../weapons/MomentumLauncher';
 import { EmCoil } from '../weapons/EmCoil';
+import { PlaceholderWeapon } from '../weapons/PlaceholderWeapon';
 import { ArcEffects } from '../weapons/ArcEffects';
 import type { Weapon } from '../weapons/Weapon';
 import { Projectiles } from '../weapons/Projectiles';
 import { ViewModel } from '../weapons/ViewModel';
-import { createWeaponState, computeStats } from '../data/loadout';
+import { computeStats } from '../data/loadout';
 import { BASES } from '../data/bases';
-import { loadoutFromUrl } from '../data/startState';
+import { ITEMS } from '../data/items';
 import { PARTS } from '../data/parts';
-import type { Persistent } from '../core/types';
+import { createArmorSystem } from '../player/armor';
+import { weaponStateOf, writeBackWeapon } from '../hub/gear';
+import { canAddAll, pickUpToBag, settleDeath, settleExtract } from '../hub/state';
+import { storage } from '../hub/storage';
+import type { HubSave } from '../hub/save';
+import { usedCells } from '../inventory/grid';
 
-/** localStorage 는 사생활 보호 모드/차단 환경에서 throw 할 수 있다 → 실패해도 게임은 동작 (저장만 안 됨) */
-const storage = {
-  get: () => { try { return localStorage.getItem(SAVE_KEY); } catch { return null; } },
-  set: (p: Persistent) => { try { localStorage.setItem(SAVE_KEY, serialize(p)); } catch { /* 저장 불가: 무시 */ } },
-};
-
-export async function startRaid(root: HTMLElement) {
-  // 장착 메뉴 (메뉴를 선택해야 내용 진행, 콜백이 없으면 버튼 클릭 안 함)
-  let menuDone = false;
-  let initialLoadout = loadoutFromUrl(location.search);
-  showSelectScreen(root, {
-    start: (loadout) => { initialLoadout = loadout; menuDone = true; },
-  });
-  while (!menuDone) await new Promise((r) => setTimeout(r, 100));
-  root.innerHTML = ''; // 메뉴 지우기
+/**
+ * 레이드 시작. save.raid(출격 준비에서 만든 가방·무기·방어구)를 받아 진행하고, 끝나면 정산(settleExtract/settleDeath) 후 저장한다.
+ * persist=false 는 개발용 빠른 시작(저장을 건드리지 않음).
+ */
+export async function startRaid(root: HTMLElement, save: HubSave, opts: { persist?: boolean } = {}) {
+  const persist = opts.persist ?? true;
+  const session = save.raid!;
+  const saveNow = () => { if (persist) storage.save(save); };
 
   const world = await createPhysics();
   const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
@@ -70,46 +64,51 @@ export async function startRaid(root: HTMLElement) {
   const player = new PlayerController(world, camera, gameWorld.spawn.clone());
   scene.add(camera); // 뷰모델이 카메라 자식이므로 씬에 포함
 
-  // --- 영속 데이터: 보관함 → 소지품 (무기 전부 + 재료 키트). 레이드 중 창을 닫으면 다음 로드 때 사망 처리 ---
-  let persistent = beginRaid(loadPersistent(storage.get()));
-  // 개발용: URL 의 부품 파라미터(?base=&front=&rear=&top=)로 해당 베이스 무기를 새 구성(풀 내구도)으로 교체. 정식 메뉴는 T9
-  // initialLoadout 으로 해당 베이스 무기를 새 구성(풀 내구도)으로 교체
-  const i = persistent.carried.weapons.findIndex((w) => w.loadout.base === initialLoadout.base);
-  if (i >= 0) persistent.carried.weapons[i] = toStored(createWeaponState(initialLoadout));
-  storage.set(persistent);
-  // 선택한 베이스로 초기 무기 설정
-  const startBase = initialLoadout.base;
-  const startMaterials = { ...persistent.carried.materials };
-  const startedAt = performance.now();
+  // --- 출격 준비의 방어구(저항·속도 페널티) ---
+  const armorPieces = () => [session.armor.body, session.armor.aux].filter((x): x is NonNullable<typeof x> => !!x);
+  if (armorPieces().length) player.armor = createArmorSystem(armorPieces);
 
-  // 재료 객체를 소지품과 공유 → 사격 소모/전리품 습득이 곧바로 소지품에 반영된다
-  const inventory = new Inventory(persistent.carried.materials);
+  // 가방 격자를 탄 인벤토리로 직접 쓴다 → 사격 소모/전리품 습득이 곧바로 격자에 반영된다
+  const inventory = new Inventory(session.bag);
+  const startedAt = performance.now();
   let mobs: MobManager;
   const projectiles = new Projectiles(scene, world, player.body, () => mobs.targets());
   mobs = new MobManager(scene, world, gameWorld.loot, gameWorld.mobSpawns, PERF.mobCap);
   const view = new ViewModel(camera);
   const arcs = new ArcEffects(scene);
 
-  // --- 소지한 무기들 (WPN 버튼으로 순환 전환, 위치/상태 유지) ---
-  const states = persistent.carried.weapons.map(toState);
-  const makeWeapon = (i: number): Weapon => states[i].loadout.base === 'em_coil'
-    ? new EmCoil(states[i], {
-      world, player, view, arcs,
-      staticConductors: () => gameWorld.conductors,
-      mobTargets: () => mobs.alive,
-      isInWater: (x, z) => gameWorld.isInWater(x, z),
-    })
-    : new MomentumLauncher(states[i], player, projectiles, view, inventory);
+  // --- 장착한 무기들 (WPN 버튼/F 키로 순환 전환) ---
+  const states = session.weapons.map((w) => weaponStateOf(w));
+  const makeWeapon = (i: number): Weapon => {
+    const base = states[i].loadout.base;
+    if (!BASES[base].implemented) return new PlaceholderWeapon(states[i]);
+    return base === 'em_coil'
+      ? new EmCoil(states[i], {
+        world, player, view, arcs,
+        staticConductors: () => gameWorld.conductors,
+        mobTargets: () => mobs.alive,
+        isInWater: (x, z) => gameWorld.isInWater(x, z),
+      })
+      : new MomentumLauncher(states[i], player, projectiles, view, inventory);
+  };
   const weapons = states.map((_, i) => makeWeapon(i));
-
-  let cur = Math.max(0, states.findIndex((s) => s.loadout.base === startBase));
+  let cur = 0;
   let weapon = weapons[cur];
 
   const input = new Input(renderer.domElement, root);
   if (import.meta.env.DEV) {
-    (window as any).__game = { player, gfx, input, world, weapon, inventory, projectiles, gameWorld, mobs, arcs, scene, camera, states, get persistent() { return persistent; } };
+    (window as any).__game = { player, gfx, input, world, get weapon() { return weapon; }, inventory, projectiles, gameWorld, mobs, arcs, scene, camera, states, save, session };
   }
-  const overlays = createOverlays(root, () => input.touch.enabled, () => input.touch.toggleDebug());
+
+  // --- 가방 화면(안전 보관함 이동): 열려 있는 동안 레이드 일시정지 ---
+  let bagOpen = false;
+  function openBag() {
+    if (bagOpen || phase !== 'raid') return;
+    bagOpen = true;
+    document.exitPointerLock?.();
+    openBagOverlay(root, session.bag, save.safe, saveNow, () => { bagOpen = false; input.endFrame(); last = performance.now(); });
+  }
+  const overlays = createOverlays(root, () => input.touch.enabled, () => input.touch.toggleDebug(), openBag);
 
   const hud = document.createElement('div');
   hud.style.cssText = 'position:fixed;top:8px;left:8px;z-index:5;color:#7fbf6a;font:12px monospace;white-space:pre;pointer-events:none';
@@ -124,27 +123,21 @@ export async function startRaid(root: HTMLElement) {
   // --- 레이드 진행/종료 ---
   let phase: 'raid' | 'extracted' | 'dead' = 'raid';
   let extractProgress = 0;
+  let hudMsg = '', hudMsgUntil = 0;
+  const say = (t: string) => { hudMsg = t; hudMsgUntil = performance.now() + 2200; };
 
   function endRaid(outcome: 'extracted' | 'dead') {
     phase = outcome;
     document.exitPointerLock?.();
     const seconds = (performance.now() - startedAt) / 1000;
-    let delta: Record<string, number> = {};
-    let lost: { weapons: Persistent['carried']['weapons']; materials: Record<string, number> } = { weapons: [], materials: {} };
-    if (outcome === 'dead') {
-      const r = settleDeath(persistent); // 소지한 무기·재료 손실, 보관함만 유지
-      persistent = r.p;
-      lost = r.lost;
-    } else {
-      const r = settleExtract(persistent, states.map(toStored)); // 마모가 반영된 무기와 소지 재료를 보관함으로
-      persistent = r.p;
-      delta = diffMaterials(startMaterials, r.carriedOut);
-    }
-    storage.set(persistent);
-    showEndScreen(root, { outcome, kills: mobs.kills, seconds, delta, lost, stash: persistent.stash }, {
-      restart: () => location.reload(),
-      // 자동 수리 버튼(아지트 수리 대체)
-      repairAndRestart: () => { storage.set(repairWeapons(persistent)); location.reload(); },
+    // 레이드 중 마모를 아이템에 반영한 뒤 정산한다 (사망이면 어차피 손실)
+    session.weapons.forEach((w, i) => writeBackWeapon(w, states[i]));
+    let gained: Record<string, number> = {}, overflow = 0, lost: ReturnType<typeof settleDeath>['lost'] = [];
+    if (outcome === 'dead') lost = settleDeath(save).lost; // 가방·장착 장비 손실, 안전 보관함 유지
+    else { const r = settleExtract(save); gained = r.gained; overflow = r.overflow; } // 가방·장비·안전 보관함 → 창고(초과분은 입고 대기)
+    saveNow();
+    showEndScreen(root, { outcome, kills: mobs.kills, seconds, gained, overflow, lost, keptSafe: save.safe.placed.length }, {
+      toHub: () => location.reload(),
     });
   }
 
@@ -165,6 +158,7 @@ export async function startRaid(root: HTMLElement) {
     const ws = weapon.state;
     const { inactiveParts } = computeStats(ws);
     const dur = [`${BASES[ws.loadout.base].name} ${Math.ceil(ws.baseDurability)}`];
+    const armor = armorPieces().map((a) => `${ITEMS[a.defId].name} ${Math.ceil(a.dur ?? 0)}`).join(' | ');
     for (const id of Object.keys(ws.partDurability)) {
       dur.push(`${PARTS[id].name} ${Math.ceil(ws.partDurability[id])}${inactiveParts.includes(id) ? '(정지)' : ''}`);
     }
@@ -172,24 +166,40 @@ export async function startRaid(root: HTMLElement) {
     return [
       `HP ${Math.ceil(player.hp)}/${TUNING.player.maxHp}   몹 ${mobs.alive.length}/${mobs.mobs.length}  처치 ${mobs.kills}`,
       `speed ${player.velocity.length().toFixed(1)} m/s  ${player.grounded ? 'ground' : 'air'}  ${gfx.width}x${gfx.height}`,
-      `내구도 ${dur.join(' | ')}`,
+      `내구도 ${dur.join(' | ')}${armor ? `   방어구 ${armor}` : ''}`,
+      `무기 ${cur + 1}/${weapons.length}${weapons.length > 1 ? ' (F/WPN 전환)' : ''}   가방 ${usedCells(session.bag)}/${session.bag.w * session.bag.h}칸 (B/BAG)${hudMsgUntil > performance.now() ? `   ${hudMsg}` : ''}`,
       ...weapon.hudLines(),
       exitHud(),
     ].join('\n');
   }
 
+  // 가방에 전부 들어갈 자리가 있을 때만 줍는다 (부분 습득 없음)
+  const canPick = (items: Record<string, number>) => canAddAll(session.bag, items);
+
   renderer.setAnimationLoop((now) => {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
 
+    if (bagOpen) { gfx.render(scene, camera, now / 1000); input.endFrame(); return; }
     if (phase === 'raid') {
+      if (input.justPressed('KeyB')) openBag();
+      if (weapons.length > 1 && input.weaponPressed) {
+        states[cur].charge = 0;
+        player.speedMul = 1; // 코일 충전 중 전환해도 감속이 남지 않게
+        cur = (cur + 1) % weapons.length;
+        weapon = weapons[cur];
+        say(`무기 전환: ${BASES[states[cur].loadout.base].name}`);
+      }
       weapon.update(dt, input);
       projectiles.update(dt);
       player.update(dt, input);
       mobs.update(dt, player);
-      for (const got of gameWorld.loot.update(dt, player.position)) {
-        for (const [id, n] of Object.entries(got)) inventory.materials[id] = (inventory.materials[id] ?? 0) + n;
+      const { picked, blocked } = gameWorld.loot.update(dt, player.position, canPick);
+      for (const got of picked) {
+        for (const [id, n] of Object.entries(got)) pickUpToBag(session.bag, id, n);
+        say(`+ ${Object.entries(got).map(([id, n]) => `${ITEMS[id]?.name ?? id}${n > 1 ? ` ${n}` : ''}`).join(', ')}`);
       }
+      if (blocked) say('가방이 가득 참 (B 로 정리)');
       // 탈출: 지점 안에서 extractHold 초 버티면 성공. 사망이 우선
       const ex = stepExtract(extractProgress, gameWorld.extraction.contains(player.position), dt, TUNING.raid.extractHold, TUNING.raid.extractDecay);
       extractProgress = ex.progress;

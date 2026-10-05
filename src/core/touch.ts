@@ -37,6 +37,7 @@ export class TouchControls {
   fireClicked = false;
   jumpPressed = false;
   swapPressed = false;
+  weaponPressed = false;
   /** 자동 전력질주 (손을 떼도 유지) */
   sprintLocked = false;
   /** 조이스틱을 누른 채 y ≥ start 인 동안의 전력질주 */
@@ -169,6 +170,7 @@ export class TouchControls {
       this.setButtonVisual(btn, true);
       if (btn === 'fire') this.fireClicked = true;
       else if (btn === 'jump') this.jumpPressed = true;
+      else if (btn === 'weapon') this.weaponPressed = true;
       else this.swapPressed = true;
     } else if (inMoveZone && this.movePtr === -1) {
       role = 'move';
@@ -307,7 +309,7 @@ export class TouchControls {
 
   endFrame() {
     this.lookDX = this.lookDY = 0;
-    this.fireClicked = this.jumpPressed = this.swapPressed = false;
+    this.fireClicked = this.jumpPressed = this.swapPressed = this.weaponPressed = false;
     if (this.debug) this.debugEl.textContent = this.debugText();
   }
 }

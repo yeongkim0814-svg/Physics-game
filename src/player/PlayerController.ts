@@ -3,7 +3,7 @@ import { RAPIER } from '../core/physics';
 import { moveCharacter } from '../core/characterMotor';
 import { fallDamage } from './damage';
 import type { PlayerInput } from '../core/input';
-import type { Damageable, DamageSource, ImpulseTarget } from '../core/types';
+import type { ArmorSystem, Damageable, DamageSource, ImpulseTarget } from '../core/types';
 import { TUNING } from '../config/tuning';
 
 const P = TUNING.player;
@@ -28,6 +28,8 @@ export class PlayerController implements ImpulseTarget, Damageable {
   landingSpeed = 0;
   /** 외부 시스템(코일 충전 등)이 설정하는 이동속도 배율 */
   speedMul = 1;
+  /** 방어구(허브에서 장착). 없으면 피해·속도 그대로 */
+  armor: ArmorSystem | null = null;
   /** 반동을 받은 뒤 남은 미끄러짐 시간 (지면 마찰 약화) */
   private slideTimer = 0;
   /** 계단을 오를 때 카메라가 한 단씩 튀지 않게 하는 시각 오프셋(<=0). 실제 눈 위치(조준/사격)에는 영향 없음 */
@@ -59,8 +61,9 @@ export class PlayerController implements ImpulseTarget, Damageable {
   }
 
   /** 몹 공격, 낙하, 누전 등 모든 피해의 단일 진입점 */
-  takeDamage(amount: number, _source: DamageSource) {
+  takeDamage(amount: number, source: DamageSource) {
     if (this.dead || amount <= 0) return;
+    if (this.armor) amount = this.armor.absorb(amount, source);
     this.hp = Math.max(0, this.hp - amount);
     this.lastHitAt = performance.now() / 1000;
     if (this.hp <= 0) this.dead = true;
@@ -104,7 +107,7 @@ export class PlayerController implements ImpulseTarget, Damageable {
     if (wish.lengthSq() > 1) wish.normalize();
     // 전력질주: 전진 입력일 때만. 충전 등으로 이동이 느려진 상태(speedMul<1)에서는 겹쳐 적용하지 않는다
     const sprinting = input.sprint && f > 0.1 && this.speedMul >= 1;
-    wish.multiplyScalar(P.moveSpeed * this.speedMul * (sprinting ? P.sprintMul : 1));
+    wish.multiplyScalar(P.moveSpeed * this.speedMul * (this.armor?.speedMul() ?? 1) * (sprinting ? P.sprintMul : 1));
     const hasInput = wish.lengthSq() > 1e-6;
 
     const hv = new THREE.Vector3(this.velocity.x, 0, this.velocity.z);

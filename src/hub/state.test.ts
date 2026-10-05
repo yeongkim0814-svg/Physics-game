@@ -356,6 +356,14 @@ describe('탈출/사망 정산', () => {
     expect(ensureStarterWeapon(s)).toBe(false); // 이미 있으면 추가 지급 없음
   });
 
+  it('출격 직후(무기가 모두 레이드에 있는 동안)에는 보급 무기가 생기지 않는다', () => {
+    const s = defaultSave();
+    equipWeapon(s, find(s, 'momentum_launcher').uid);
+    beginRaid(s, T0);
+    expect(ensureStarterWeapon(s)).toBe(false);
+    expect(allInstances(s.stash).some((i) => i.defId === 'momentum_launcher')).toBe(false);
+  });
+
   it('창고가 가득 차면 못 들어간 아이템은 pending 으로 간다', () => {
     const s = raidWith();
     s.stash = makeGrid(3, 3); // 거의 꽉 찬 창고

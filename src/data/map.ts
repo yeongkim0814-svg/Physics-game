@@ -70,6 +70,19 @@ export const MAP = {
     { pos: [-8, 6.3, -38], materials: { ingot: 3 } },           // 고지 정상
     { pos: [-20, 6.3, -30], materials: { scrap: 6 } },
     { pos: [20, 0, -34], materials: { slag: 5 } }, { pos: [30, 0, -44], materials: { scrap: 4 } },
+    // --- 2단계: 이상 현상 샘플(미분석, 분석기로 지식 노드 해금) + 연구 재료 + 장비 부품 ---
+    // 샘플은 위험한 곳(금속 캣워크 끝, 고지 안쪽)에 둔다. 위치 힌트는 아지트에서 주지 않는다
+    { pos: [42, 3.9, -13], materials: { anomaly_sample: 1 } },
+    { pos: [-16, 6.3, -46], materials: { anomaly_sample: 1 } },
+    { pos: [-30, 0, 16], materials: { copper_wire: 4 } },               // 물웅덩이 가장자리
+    { pos: [24, 0, 10], materials: { copper_wire: 3, magnet_chip: 1 } }, // 금속 구역 입구
+    { pos: [44, 4.5, 6], materials: { magnet_chip: 2 } },               // 금속 기둥 위쪽
+    { pos: [-22, 0, 34], materials: { spring_steel: 2 } },
+    { pos: [8, 0, -12], materials: { spring_steel: 1, copper_wire: 2 } },
+    { pos: [-20, 6.3, -38], materials: { lens: 1 } },                    // 고지 정상
+    { pos: [38, 3.9, -14], materials: { logic_board: 1 } },              // 캣워크
+    { pos: [48, 0, -4], materials: { precision_gear: 1 } },
+    { pos: [-10, 0, -22], materials: { lens: 1, logic_board: 1 } },
   ] as LootDef[],
 
   /** T5 몹이 사용. 종류별 배치 */

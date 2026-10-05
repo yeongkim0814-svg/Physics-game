@@ -21,6 +21,7 @@ export function startHub(root: HTMLElement, onLaunchRaid: (save: HubSave) => voi
     save.log.push(notice);
     storage.save(save);
   }
+  storage.save(save); // 새 게임이면 첫 상태를 바로 기록
   const shell = createHubShell(root, save, {
     home: homeScreen, stash: stashScreen, analyzer: analyzerScreen, research: researchScreen,
     workbench: workbenchScreen, tree: treeScreen, prep: prepScreen,
