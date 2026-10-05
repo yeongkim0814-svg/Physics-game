@@ -51,21 +51,17 @@ export const TOUCH = {
   buttons: {
     fire:     { right: 28,  bottom: 40,  size: 104, label: 'FIRE' },
     jump:     { right: 150, bottom: 120, size: 84,  label: 'JUMP' },
-    interact: { right: 150, bottom: 24,  size: 72,  label: 'USE' },
     swap:     { right: 250, bottom: 40,  size: 64,  label: 'AMMO' }, // 재료 전환
   },
   buttonOpacity: 0.45,
   /**
-   * 전력질주 잠금: 조이스틱을 위로 반경의 engage 배까지 길게 끌고 holdSec 유지하면 잠긴다 (잠금 아이콘이 그 위치에 표시됨).
-   * engage > 1 이라 평소 최대 전진(반경 1.0)으로는 잠기지 않는다. 아래로 cancelBackward 이상 당기거나 표시를 탭하면 해제
+   * 전력질주 잠금: 조이스틱 시작점에서 위로 반경의 engage 배 이상 앞으로 밀면 즉시 잠긴다.
+   * 잠기면 조이스틱 손잡이가 시작점 위 engage 거리의 지정 위치(잠금 아이콘 자리)에 고정된다.
+   * 해제: 왼쪽(조이스틱) 영역을 다시 터치. engage > 1 이라 평소 최대 전진(반경 1.0)으로는 잠기지 않는다.
    */
   sprint: {
-    engage: 1.5,          // 조이스틱 시작점에서 손가락까지 거리(반경 대비). 1 초과여야 평소 달리기와 구분됨
-    coneDeg: 35,          // 정면(위)에서 좌우로 이 각도 안
-    holdSec: 0.3,         // 그 위치에서 유지해야 하는 시간
-    cancelBackward: 0.35, // 뒤로 이만큼 당기면 해제 (조이스틱 y 값 기준)
-    autoRun: true,        // 잠금 중 손을 떼도 계속 전진 (false 면 속도 배율만 유지)
+    engage: 1.5,  // 시작점에서 손가락까지 거리(반경 대비)
+    coneDeg: 35,  // 정면(위)에서 좌우로 이 각도 안
     vibrateMs: 25,
-    chip: { left: 28, bottom: 28, width: 132, height: 44, label: 'SPRINT ▲' },
   },
 } as const;

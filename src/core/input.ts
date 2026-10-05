@@ -64,7 +64,7 @@ export class Input {
   /** 데스크톱: Shift 를 누르는 동안 / 터치: 조이스틱 전력질주 잠금 */
   get sprint() { return this.key('ShiftLeft') + this.key('ShiftRight') > 0 || this.touch.sprintLocked; }
   get swapPressed() { return this.pressed.has('KeyQ') || this.touch.swapPressed; }
-  get interactPressed() { return this.pressed.has('KeyE') || this.touch.interactPressed; }
+  get interactPressed() { return this.pressed.has('KeyE'); }
   /** 디버그/토글용 키 */
   justPressed(code: string) { return this.pressed.has(code); }
 
