@@ -19,6 +19,7 @@ const CSS = `
  border:0;border-right:1px solid var(--line);background:transparent;color:var(--dim);font:bold 13px monospace;cursor:pointer;position:relative;padding:4px 2px;touch-action:none}
 .hub-tab:last-child{border-right:0}
 .hub-tab.on{background:var(--btn);color:var(--fg);box-shadow:inset 0 3px 0 var(--acc)}
+.hub-tab.off{opacity:.35;cursor:default}
 .hub-tab .dot{position:absolute;top:6px;right:10px;width:10px;height:10px;background:var(--warn)}
 .hub-tab .g{font-size:18px}
 .h1{font:bold 17px monospace;color:var(--acc);margin:0 0 8px}

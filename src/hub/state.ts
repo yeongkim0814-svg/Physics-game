@@ -325,8 +325,24 @@ export function settleDeath(s: HubSave): DeathReport {
   s.raid = null;
   s.stats.deaths++;
   for (const i of allInstances(s.safe)) clearFound(i);
-  ensureStarterWeapon(s);
+  ensureEssentials(s);
   return { lost, kept: allInstances(s.safe) };
+}
+
+/** 분석기가 하나도 없으면 기초 분석기를 지급 (연구 장비는 레이드에 못 가져가지만, 버렸을 때의 진행 불능 방지) */
+export function ensureAnalyzer(s: HubSave): boolean {
+  if (analyzerTier(s) > 0) return false;
+  const a = createItem('analyzer_1');
+  if (addItem(s.stash, a)) addItem(s.pending, a);
+  pushLog(s, '보급 지급: 기초 분석기');
+  return true;
+}
+
+/** 진행 불능 방지 지급(무기·분석기). 변경이 있으면 true */
+export function ensureEssentials(s: HubSave): boolean {
+  const a = ensureStarterWeapon(s);
+  const b = ensureAnalyzer(s);
+  return a || b;
 }
 
 /** 어디에도 무기 베이스가 없으면 운동량 사출기 1개를 창고(안 되면 입고 대기)에 지급 */

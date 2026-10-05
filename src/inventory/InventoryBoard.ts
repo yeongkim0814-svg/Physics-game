@@ -33,6 +33,8 @@ export interface BoardOptions {
   /** 잠긴 아이템(연구 중 등): 사유 또는 null */
   locked?: (inst: ItemInstance) => string | null;
   allowDiscard?: boolean;
+  /** 버릴 수 없는 아이템 (사유 또는 null) */
+  canDiscard?: (inst: ItemInstance) => string | null;
   onSelect?: (sel: { gridId: string; inst: ItemInstance } | null) => void;
   /** 선택 아이템에 대한 추가 버튼 (예: 장착) */
   extraActions?: (sel: { gridId: string; inst: ItemInstance } | null) => { label: string; run: () => void; disabled?: boolean }[];
@@ -174,6 +176,8 @@ export function createInventoryBoard(opts: BoardOptions): BoardHandle {
   function discard() {
     const s = selected();
     if (!s) return;
+    const why = opts.canDiscard?.(s.inst);
+    if (why) { say(why); return; }
     if (!discardArmed) { discardArmed = true; say('한 번 더 누르면 버립니다'); render(); return; }
     const g = gridOf(s.gridId).grid;
     if (qty >= s.inst.count) removeItem(g, s.inst.uid); else s.inst.count -= qty;
