@@ -1,6 +1,7 @@
 import { BASES } from '../data/bases';
 import { MATERIALS } from '../data/materials';
 import { PARTS } from '../data/parts';
+import { onTap } from './tap';
 import type { StoredWeapon } from '../core/types';
 
 export interface EndInfo {
@@ -60,8 +61,8 @@ export function showEndScreen(root: HTMLElement, info: EndInfo, actions: EndActi
     const b = document.createElement('button');
     b.textContent = label;
     b.style.cssText = 'margin-top:14px;min-width:260px;min-height:56px;font:bold 17px monospace;color:#fff;background:#363d2a;' +
-      'border:2px solid #7fbf6a;touch-action:manipulation;cursor:pointer';
-    b.addEventListener('click', fn);
+      'border:2px solid #7fbf6a;cursor:pointer';
+    onTap(b, fn);
     el.appendChild(b);
   };
   if (ok && actions.repairAndRestart) btn('자동 수리 후 새 레이드', actions.repairAndRestart);

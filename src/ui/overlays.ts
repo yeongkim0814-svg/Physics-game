@@ -1,7 +1,8 @@
 import { PERF } from '../config/settings';
+import { onTap } from './tap';
 
 const BTN = 'position:fixed;z-index:20;padding:6px 10px;font:bold 12px monospace;color:#fff;' +
-  'background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.4);touch-action:manipulation;user-select:none';
+  'background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.4);user-select:none';
 
 /** 전체화면/FPS 토글 버튼, FPS 표시, 세로 화면 회전 안내 */
 export function createOverlays(root: HTMLElement, isTouch: () => boolean, onToggleTouchDebug: () => void) {
@@ -14,7 +15,7 @@ export function createOverlays(root: HTMLElement, isTouch: () => boolean, onTogg
   };
 
   const fs = mk(`${BTN};top:8px;right:8px`, 'FULL');
-  fs.addEventListener('click', async () => {
+  onTap(fs, async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
       else {
@@ -25,12 +26,12 @@ export function createOverlays(root: HTMLElement, isTouch: () => boolean, onTogg
   });
 
   // 터치 진단: 동시에 인식되는 손가락과 역할을 화면에 표시 (멀티터치 문제 확인용)
-  mk(`${BTN};top:8px;right:136px`, 'TOUCH').addEventListener('click', onToggleTouchDebug);
+  onTap(mk(`${BTN};top:8px;right:136px`, 'TOUCH'), onToggleTouchDebug);
 
   let showFps: boolean = PERF.showFps;
   const fpsBtn = mk(`${BTN};top:8px;right:72px`, 'FPS');
   const fpsText = mk('position:fixed;z-index:20;top:44px;right:8px;font:12px monospace;color:#8f8;pointer-events:none', '');
-  fpsBtn.addEventListener('click', () => { showFps = !showFps; fpsText.style.display = showFps ? 'block' : 'none'; });
+  onTap(fpsBtn, () => { showFps = !showFps; fpsText.style.display = showFps ? 'block' : 'none'; });
   fpsText.style.display = showFps ? 'block' : 'none';
 
   const rotate = mk(

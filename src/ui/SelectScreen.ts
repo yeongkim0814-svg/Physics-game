@@ -1,6 +1,7 @@
 import type { BaseId, Loadout } from '../core/types';
 import { BASES } from '../data/bases';
 import { PARTS } from '../data/parts';
+import { onTap } from './tap';
 
 const PART_SLOTS = ['front', 'rear', 'top'] as const;
 
@@ -27,8 +28,8 @@ export function showSelectScreen(root: HTMLElement, actions: SelectActions) {
   const btn = (label: string, fn: () => void, css = '') => {
     const b = document.createElement('button');
     b.textContent = label;
-    b.style.cssText = `min-width:240px;min-height:48px;font:bold 15px monospace;color:#fff;background:#363d2a;border:2px solid #7fbf6a;touch-action:manipulation;cursor:pointer;${css}`;
-    b.addEventListener('click', fn);
+    b.style.cssText = `min-width:240px;min-height:48px;font:bold 15px monospace;color:#fff;background:#363d2a;border:2px solid #7fbf6a;cursor:pointer;${css}`;
+    onTap(b, fn);
     el.appendChild(b);
   };
 
