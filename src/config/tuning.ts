@@ -73,7 +73,9 @@ export const TUNING = {
     },
     /** 격자 UI */
     ui: {
-      cellPx: 36,          // 칸 한 변(px). 태블릿 터치 기준
+      cellPx: 36,          // 칸 한 변(px). 태블릿 터치 기준 (화면이 낮으면 아래 minCellPx 까지 줄여 격자 전체가 보이게 한다)
+      minCellPx: 26,
+      boardReservePx: 215, // 격자 위·아래 UI(상단바+탭+도구줄+머리글)가 차지하는 높이(px) — 격자에 쓸 수 있는 높이 = 화면 높이 − 이 값
       dragThreshold: 8,    // 이 거리(px) 넘게 움직이면 드래그로 본다
       tapConfirm: false,   // true: 첫 탭은 미리보기만, 같은 자리 두 번째 탭에서 배치
       messageMs: 2200,
