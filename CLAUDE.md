@@ -5,7 +5,6 @@
 
 ## 명령
 - `npm run dev` 개발 서버 / `npm run check` 타입체크+테스트+빌드 (커밋 전 필수)
-- 개발 진입점: `?dev=grid`(격자 단독, 폐기 예정), `?dev=raid`(빠른 시작, 폐기 예정)
 
 ## 코드 규칙
 - TypeScript strict. 외부 에셋 없음(기본 도형+단색).

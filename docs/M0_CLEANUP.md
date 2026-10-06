@@ -1,3 +1,5 @@
+> **완료** — M0 정리 끝. 아래는 당시 계획과 근거(기록용). 결과: `raid/RaidLoop` → `game/GameLoop`(`startGame`), 무기는 `TUNING.launcher/coil` 고정 스탯, `?dev=` 진입점 제거, `data/`는 `map`·`mobs`만 유지, `player/damage`·`world/mapGen`은 사용 중이라 유지, `data/knowledge`는 허브 전용이라 삭제.
+
 # M0 정리 계획 — 익스트랙션 코드 → 오픈월드 전환
 
 `src/` 조사 결과(약 9,400줄). 미확인: `data/knowledge.ts`·`data/map.ts` 상세, `mapGen.ts`의 data 의존, `player/damage.ts` 용도.

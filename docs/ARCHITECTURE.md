@@ -43,7 +43,7 @@ src/
 ```
 - 위치 규칙: `stash`(창고) / `safe`(안전 보관함: 레이드 획득(found)품만 입장, 사망해도 유지) / `prep`(주머니/조끼/가방 격자 + 장착 equip) / `raid`(진행 중 레이드; 남은 채 로드되면 이탈=사망) / `pending`(탈출 후 창고 초과분)
 - 분석·연구는 `{startedAt, durationMs}` 타임스탬프 → 화면 이동·앱 종료와 무관하게 진행, 로드/매초 `resolveJobs` 가 확정
-- 개발 진입점: `?dev=grid`(격자 단독), `?dev=raid`(허브 생략·저장 안 건드림, `&armor=plate_vest&aux=shin_guard&rear=handle&base=em_coil`)
+- 개발 진입점 없음: `npm run dev` 가 곧바로 샌드박스를 시작한다 (M0 에서 `?dev=` 제거)
 
 ## 새 설계 모듈 초안
 
