@@ -269,7 +269,7 @@ describe('mapGen', () => {
   });
 });
 
-import { canyonLedges, mesaBlocks, terraceBlocks } from './mapGen';
+import { canyonLedges, terraceBlocks } from './mapGen';
 import { MAP } from '../data/map';
 
 describe('M1i 지형 생성기', () => {
@@ -285,15 +285,6 @@ describe('M1i 지형 생성기', () => {
     const terr = MAP.blocks.filter((b) => b.look === 'earth');
     expect(terr.length).toBeGreaterThan(10);
     for (const b of terr) expect(b.size[1]).toBeLessThanOrEqual(0.5);
-  });
-  it('메사: 결정적, 위로 갈수록 작아지고 층이 맞닿는다', () => {
-    const d = { center: [0, 0] as [number, number], size: [80, 60] as [number, number], baseY: -0.4, layers: 6, layerH: [5, 10] as [number, number], seed: 3 };
-    const a = mesaBlocks(d), b = mesaBlocks(d);
-    expect(a).toEqual(b);
-    for (let i = 1; i < a.length; i++) {
-      expect(a[i].size[0]).toBeLessThan(a[i - 1].size[0]);
-      expect(a[i].pos[1] - a[i].size[1] / 2).toBeCloseTo(a[i - 1].pos[1] + a[i - 1].size[1] / 2, 6);
-    }
   });
   it('협곡 돌출: skip 구간 제외, 돌출 길이 ≤ depth.max+0.3, 협곡 벽 근처', () => {
     const c = { zMin: -18, zMax: -4, depth: 14 };

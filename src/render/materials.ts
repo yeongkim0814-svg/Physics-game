@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import { DESAT_MAX_REGIONS, type DesatRegion } from './desat';
 import { patchRetro } from './snap';
-import { isPS1 } from './style';
+import { isPS1, LP } from './style';
 
 // 색을 코드에서 쓴 그대로 출력 (조명·안개 계산을 단순하게). Color 생성보다 먼저 설정해야 한다.
 THREE.ColorManagement.enabled = false;
@@ -40,6 +40,14 @@ export function setDesatRegions(regions: readonly DesatRegion[]) {
 }
 setDesatRegions(VISUAL.lowpoly.desat.regions);
 
+/**
+ * 셰이더 높이 안개 공유 유니폼 (C6, 프리셋 LP.fog.height). x = top, y = 1/falloff, z = density(0 이면 꺼짐).
+ * 모든 로우폴리 재질(지형·장식·캐릭터·파편)이 월드 y 로 같은 안개를 본다. 하늘·백드롭·빛기둥은 fog:false 라 제외.
+ */
+const HF = LP.fog.height;
+const heightFogUniform = { value: new THREE.Vector4(HF?.top ?? 0, 1 / Math.max(1e-3, HF?.falloff ?? 1), HF?.density ?? 0, 0) };
+const heightFogColor = { value: new THREE.Color(HF?.color ?? 0xffffff) };
+
 /** 재질 하나의 탈색(0~1) 변경. 로우폴리 재질만 유효 */
 export function setMaterialDesaturation(m: THREE.Material, amount: number) {
   const u = m.userData.desat as { value: number } | undefined;
@@ -60,6 +68,8 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
     shader.uniforms.uRimStrength = rimStrength;
     shader.uniforms.uRimPower = rimPower;
     shader.uniforms.uRegions = regionUniform;
+    shader.uniforms.uFogH = heightFogUniform;
+    shader.uniforms.uFogHColor = heightFogColor;
     shader.uniforms.uSoft = softUniform;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vDesatPos;')
@@ -78,7 +88,9 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
         uniform vec3 uRimColor;
         uniform float uRimStrength;
         uniform float uRimPower;
-        uniform vec4 uRegions[${DESAT_MAX_REGIONS}];`)
+        uniform vec4 uRegions[${DESAT_MAX_REGIONS}];
+        uniform vec4 uFogH;
+        uniform vec3 uFogHColor;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         float dAmt = uDesat;
         for (int i = 0; i < ${DESAT_MAX_REGIONS}; i++) {
@@ -89,6 +101,22 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
           }
         }
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), clamp(dAmt, 0.0, 1.0));`)
+      .replace('#include <fog_fragment>', `
+        #ifdef USE_FOG
+          // 거리 안개(기존) 위에 높이 안개를 얹는다: 밀도 ρ(y)=density·exp(-(y-top)/falloff) 의 카메라→프래그먼트 선분 적분
+          float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
+          vec3 fogMixed = mix(gl_FragColor.rgb, fogColor, fogFactor);
+          if (uFogH.z > 0.0) {
+            vec3 toP = vDesatPos - cameraPosition;
+            float k = uFogH.y;
+            float e0 = exp(clamp(-(cameraPosition.y - uFogH.x) * k, -10.0, 6.0));
+            float dyk = toP.y * k;
+            float integ = abs(dyk) < 0.002 ? e0 : e0 * (1.0 - exp(clamp(-dyk, -14.0, 14.0))) / dyk;
+            float hf = 1.0 - exp(-uFogH.z * length(toP) * max(integ, 0.0));
+            fogMixed = mix(fogMixed, uFogHColor, clamp(hf, 0.0, 1.0));
+          }
+          gl_FragColor.rgb = fogMixed;
+        #endif`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         totalEmissiveRadiance += diffuseColor.rgb * uSelfGlow;
         if (uRimStrength > 0.0) {

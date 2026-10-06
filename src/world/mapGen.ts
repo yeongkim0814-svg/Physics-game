@@ -79,7 +79,7 @@ export function inRect(x: number, z: number, center: [number, number], size: [nu
 }
 
 // ---------------------------------------------------------------------------------------------
-// M1i: 황혼 블록 지형용 순수 생성기 (테라스 / 메사 / 협곡 돌출). 결정적 난수.
+// M1i: 황혼 블록 지형용 순수 생성기 (테라스 / 협곡 돌출). 메사는 A2 에서 하이트필드(world/terrain)로 대체. 결정적 난수.
 // ---------------------------------------------------------------------------------------------
 
 /** 완만한 계단식 단차: 층마다 stepH 만큼 오르고 사방으로 inset(m) 만큼 줄어드는 판 쌓기. stepH ≤ 자동 계단 한계(0.5m) 이면 걸어서 오를 수 있다 */
@@ -92,25 +92,6 @@ export function terraceBlocks(d: TerraceDef): BoxPart[] {
     const w = d.size[0] - 2 * d.inset * k, dd = d.size[1] - 2 * d.inset * k;
     if (w < 2 || dd < 2) break;
     out.push({ pos: [d.center[0], (k + 0.5) * d.stepH, d.center[1]], size: [w, d.stepH, dd] });
-  }
-  return out;
-}
-
-/** 시각 전용 메사(큰 층층 절벽): 아래 층이 가장 크고 위로 갈수록 조금 작아지며 무작위로 어긋난다. 층 높이는 [minH, maxH] */
-export interface MesaDef { center: [number, number]; size: [number, number]; baseY: number; layers: number; layerH: [number, number]; seed: number }
-
-export function mesaBlocks(d: MesaDef): BoxPart[] {
-  const rnd = mulberry(d.seed);
-  const out: BoxPart[] = [];
-  let w = d.size[0], dd = d.size[1], cx = d.center[0], cz = d.center[1], y = d.baseY;
-  for (let k = 0; k < d.layers; k++) {
-    const h = d.layerH[0] + rnd() * (d.layerH[1] - d.layerH[0]);
-    out.push({ pos: [cx, y + h / 2, cz], size: [w, h, dd] });
-    y += h;
-    const shrinkW = w * (0.12 + rnd() * 0.22), shrinkD = dd * (0.12 + rnd() * 0.22);
-    cx += (rnd() - 0.5) * shrinkW; cz += (rnd() - 0.5) * shrinkD;
-    w -= shrinkW; dd -= shrinkD;
-    if (w < 4 || dd < 4) break;
   }
   return out;
 }

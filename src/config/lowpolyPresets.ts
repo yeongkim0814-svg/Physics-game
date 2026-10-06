@@ -4,9 +4,15 @@
 
 export type Vec3T = [number, number, number];
 
+/**
+ * 셰이더 높이 안개 (render/materials.ts 공용 패치, 월드 y 기반): 밀도 ρ(y) = density·exp(-(y - top)/falloff) 를 카메라→프래그먼트 선분으로 적분한다.
+ * top 은 밀도가 density 인 높이(m), falloff 는 e 배 변하는 높이 간격. 낮은 곳일수록 짙고 color(보랏빛)로 잠긴다. density 0 이면 꺼짐.
+ */
+export interface HeightFog { top: number; falloff: number; density: number; color: number }
+
 export interface LowpolyPreset {
   /** 안개 = 배경색. 백드롭 하단·지평선 헤이즈와 맞춘다 */
-  fog: { color: number; near: number; far: number };
+  fog: { color: number; near: number; far: number; height?: HeightFog };
   /** 태양광(Directional) + 하늘/지면 반사광(Hemisphere). 강도는 three 물리 단위(≈π 배) */
   lighting: { sky: number; ground: number; hemiIntensity: number; sun: number; sunIntensity: number; sunDir: Vec3T; sunDistance: number };
   sky: {
@@ -37,6 +43,9 @@ export interface LowpolyPreset {
     mossStrength: [number, number]; // 이끼 혼합 비율 범위
     bottomShade: number;  // 측면 밑동의 명도 배율 (1 = 그라디언트 없음)
     shadeHeight: number;  // 밑동에서 이 높이(m)까지 그라디언트
+    /** 하이트필드 색 보정 (world/terrain/terrainMesh.ts): 낮은 곳일수록 어둡고 depthTint.color 쪽으로, 먼 링은 farTint.color(원경 산 색)로 수렴 */
+    depthTint: { color: number; amount: number; depth: number; darken: number; wall: number };
+    farTint: { color: number; from: number; to: number; amount: number };
   };
   /** 지평선 쪽 원경 색 (맵 데이터 landmarks 의 시간대별 색 선택) */
   landmarkKey: 'lowColor' | 'duskColor';
@@ -44,16 +53,14 @@ export interface LowpolyPreset {
   character: { exposure: number; selfGlow: Vec3T; rim: { color: number; strength: number; power: number } };
   blob: { radius: number; opacity: number; color: number; maxDrop: number; minScale: number; fadeHeight: number };
   decor: {
-    seed: number; trees: number; rocks: number; hills: number; mossPatches: number; puddles: number;
-    treeRange: [number, number]; hillRange: [number, number];
+    seed: number; trees: number; rocks: number; mossPatches: number; puddles: number;
+    treeRange: [number, number];
     mossColor: number; mossColor2: number; puddleColor: number;
     treeCrown: number; treeCrown2: number; treeTrunk: number;
-    rock: number; hill: number; hill2: number;
+    rock: number;
   };
   /** 시대별 기능 켜기/끄기 */
-  features: { backdrop: boolean; beam: boolean; debris: boolean; haze: boolean; windows: boolean; mesas: boolean };
-  /** 높이 안개 면 (근사). y 는 월드 높이, opacity 는 층 하나의 불투명도 */
-  haze: { color: number; layers: { y: number; opacity: number }[] };
+  features: { backdrop: boolean; beam: boolean; debris: boolean; windows: boolean; ledges: boolean };
   /** 떠 있는 파편 색 후보 */
   debrisColors: number[];
   /** 빛기둥 색: 중심(밝음)·바깥 번짐 */
@@ -61,7 +68,8 @@ export interface LowpolyPreset {
 }
 
 export const LP_DAY: LowpolyPreset = {
-  fog: { color: 0xcfe7f5, near: 40, far: 400 },
+  // 낮: 계곡 바닥에만 옅은 청백색 아지랑이 (안전 기본값)
+  fog: { color: 0xcfe7f5, near: 40, far: 400, height: { top: -8, falloff: 22, density: 0.0012, color: 0xbcd6ee } },
   lighting: {
     sky: 0x93bcff, ground: 0xa0b0e6, hemiIntensity: 2.3,
     sun: 0xfff1d2, sunIntensity: 2.6, sunDir: [0.45, 0.7, 0.55], sunDistance: 40,
@@ -88,26 +96,28 @@ export const LP_DAY: LowpolyPreset = {
     },
     lightAmp: 0.07, hueMix: 0.15, mossTop: 0.1, mossSide: 0, mossStrength: [0.4, 0.7],
     bottomShade: 0.72, shadeHeight: 5,
+    depthTint: { color: 0xa8c4de, amount: 0.3, depth: 40, darken: 0.12, wall: 0.95 },
+    farTint: { color: 0xb8d4ea, from: 160, to: 420, amount: 0.4 },
   },
   landmarkKey: 'lowColor',
   character: { exposure: 0.72, selfGlow: [0.55, 0.44, 0.3], rim: { color: 0xcfe6ff, strength: 0.34, power: 3.2 } },
   blob: { radius: 0.5, opacity: 0.32, color: 0x24324d, maxDrop: 40, minScale: 0.45, fadeHeight: 12 },
   decor: {
-    seed: 5, trees: 150, rocks: 60, hills: 16, mossPatches: 70, puddles: 12,
-    treeRange: [92, 460], hillRange: [150, 470],
+    seed: 5, trees: 150, rocks: 60, mossPatches: 70, puddles: 12,
+    treeRange: [92, 460],
     mossColor: 0x8bb36a, mossColor2: 0xa9bb62, puddleColor: 0x46a89a,
     treeCrown: 0x6fa860, treeCrown2: 0x93b255, treeTrunk: 0x8a6244,
-    rock: 0xc9b9a2, hill: 0xd2b27c, hill2: 0xb7b08a,
+    rock: 0xc9b9a2,
   },
-  features: { backdrop: false, beam: false, debris: false, haze: false, windows: false, mesas: false },
-  haze: { color: 0xcfe7f5, layers: [] },
+  features: { backdrop: false, beam: false, debris: false, windows: false, ledges: false },
   debrisColors: [0xd9c4a0],
   beamColors: { core: 0xffffff, outer: 0xcfe7f5 },
 };
 
 export const LP_DUSK: LowpolyPreset = {
   // 영원한 황혼: 안개는 목표 이미지 중경 계곡의 보랏빛 헤이즈. 가까운 곳은 선명, 멀수록 라일락으로 잠긴다
-  fog: { color: 0x7360a2, near: 45, far: 320 },
+  // 높이 안개(C6): 계곡 바닥(-30m 부근)은 짙은 보라 안개 속에 잠기고, 고원(y≥0)은 선명하다
+  fog: { color: 0x7360a2, near: 45, far: 320, height: { top: -12, falloff: 9, density: 0.014, color: 0x424a7c } },
   lighting: {
     // 하늘 반사광은 보라(그늘면), 지면 반사는 따뜻한 갈색. 태양은 낮은 고도에서 호박색 측면광 (햇빛 면 = 호박 림)
     sky: 0x8468b4, ground: 0xb07a60, hemiIntensity: 3.0,
@@ -140,6 +150,8 @@ export const LP_DUSK: LowpolyPreset = {
     },
     lightAmp: 0.22, hueMix: 0.3, mossTop: 0.2, mossSide: 0.035, mossStrength: [0.5, 0.95],
     bottomShade: 0.62, shadeHeight: 6,
+    depthTint: { color: 0x3a3f72, amount: 0.5, depth: 38, darken: 0.4, wall: 0.72 },
+    farTint: { color: 0x5a4a8c, from: 160, to: 420, amount: 0.45 },
   },
   landmarkKey: 'duskColor',
   // 림은 호박색 태양 쪽 역광 (스폰에서 북쪽을 볼 때 해가 앞쪽이라 캐릭터 가장자리가 호박색으로 빛난다)
@@ -147,17 +159,13 @@ export const LP_DUSK: LowpolyPreset = {
   blob: { radius: 0.5, opacity: 0.4, color: 0x251c44, maxDrop: 40, minScale: 0.45, fadeHeight: 12 },
   decor: {
     // 맵 밖 평원 장식은 백드롭과 겹치므로 줄이고 올리브·황록 관목으로
-    seed: 5, trees: 46, rocks: 22, hills: 0, mossPatches: 80, puddles: 10,
-    treeRange: [92, 230], hillRange: [150, 470],
+    seed: 5, trees: 46, rocks: 22, mossPatches: 80, puddles: 10,
+    treeRange: [92, 230],
     mossColor: 0x6b7a2e, mossColor2: 0x84883a, puddleColor: 0x3e4f86,
     treeCrown: 0x3e4a20, treeCrown2: 0x586028, treeTrunk: 0x5a3e34,
-    rock: 0x7a5a5a, hill: 0x6a5a82, hill2: 0x5a4c78,
+    rock: 0x7a5a5a,
   },
-  features: { backdrop: true, beam: true, debris: true, haze: true, windows: true, mesas: true },
-  haze: {
-    color: 0x6a5a9c,
-    layers: [{ y: -11.5, opacity: 0.34 }, { y: -8, opacity: 0.3 }, { y: -4.5, opacity: 0.26 }, { y: -1.2, opacity: 0.2 }],
-  },
+  features: { backdrop: true, beam: true, debris: true, windows: true, ledges: true },
   debrisColors: [0x4e4270, 0x5e4a72, 0x6e5060, 0x7a5a58, 0x463c68, 0x8a6a5a],
   beamColors: { core: 0xe6e0ff, outer: 0x8c7cff },
 };

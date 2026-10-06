@@ -30,7 +30,8 @@ function beamTexture(): THREE.CanvasTexture {
 }
 
 /**
- * 황혼 분위기 소품 (시각 전용, 충돌 없음): 탑 위 빛기둥 + 탑 창문(청록 발광) + 떠 있는 파편 + 높이 안개 면.
+ * 황혼 분위기 소품 (시각 전용, 충돌 없음): 탑 위 빛기둥 + 탑 창문(청록 발광) + 떠 있는 파편.
+ * (협곡 안개 면 4장 근사는 A2 에서 제거: 높이 안개는 render/materials.ts 의 셰이더 패치가 월드 y 로 계산한다)
  * 각 요소는 LP.features 로 끌 수 있다. update(dt) 를 매 프레임 호출.
  */
 export class Atmosphere {
@@ -45,7 +46,6 @@ export class Atmosphere {
     if (F.windows) this.buildWindows();
     if (F.beam) this.buildBeam();
     if (F.debris) this.buildDebris();
-    if (F.haze) this.buildHaze();
   }
 
   /** 탑 네 면에 청록 발광 창 (CUES.conductor). 일부는 비워 규칙적인 격자를 피한다 */
@@ -116,21 +116,6 @@ export class Atmosphere {
       this.debris!.setMatrixAt(i, m.compose(p, q, s));
     });
     this.debris.instanceMatrix.needsUpdate = true;
-  }
-
-  /** 협곡·저지대의 보랏빛 높이 안개 면 (근사): 낮은 불투명도 평면을 여러 높이에. 위에서 내려다볼수록 겹쳐 짙어진다 */
-  private buildHaze() {
-    const H = LP.haze;
-    const size = 560, depth = 90;
-    for (const layer of H.layers) {
-      const mat = createMaterial(0x000000, { emissive: H.color, fog: false });
-      mat.transparent = true; mat.depthWrite = false; mat.opacity = layer.opacity;
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, depth).rotateX(-Math.PI / 2), mat);
-      mesh.position.set(0, layer.y, (-18 + -4) / 2);
-      mesh.renderOrder = 1;
-      mesh.frustumCulled = false;
-      this.scene.add(mesh);
-    }
   }
 
   update(dt: number) {

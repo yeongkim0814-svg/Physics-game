@@ -1,5 +1,6 @@
 import type { MobKind } from '../core/types';
-import { canyonLedges, mesaBlocks, terraceBlocks, type BoxPart, type MesaDef, type StairDef, type TerraceDef, type Vec3 } from '../world/mapGen';
+import { canyonLedges, terraceBlocks, type StairDef, type TerraceDef, type Vec3 } from '../world/mapGen';
+import type { BluffDef, MassifDef, RampDef, TerrainPad } from '../world/terrain/terrainField';
 
 /**
  * 말라붙은 해안 도시 일부 (GAME_DESIGN 9절). 단위 m, 좌표 x/z 는 맵 중심 기준, 지면 윗면 y=0.
@@ -53,20 +54,46 @@ const TERRACES: TerraceDef[] = [
 ];
 const terraceBlocksAll: BlockDef[] = TERRACES.flatMap((t) => terraceBlocks(t).map((b): BlockDef => ({ ...b, kind: 'concrete', look: 'earth', moss: 1.8 })));
 
-/** 맵 밖 먼 층층 절벽(시각 전용, 충돌 없음, 외곽 벽 너머). 평원 윗면 y = -0.4 에서 쌓는다 */
-const MESA_BASE = -0.4;
-const MESAS: MesaDef[] = [
-  { center: [-140, -70], size: [90, 70], baseY: MESA_BASE, layers: 6, layerH: [7, 15], seed: 101 },
-  { center: [-125, 20], size: [60, 70], baseY: MESA_BASE, layers: 5, layerH: [6, 12], seed: 102 },
-  { center: [-175, -150], size: [80, 80], baseY: MESA_BASE, layers: 7, layerH: [9, 18], seed: 103 },
-  { center: [150, -90], size: [80, 60], baseY: MESA_BASE, layers: 6, layerH: [7, 14], seed: 104 },
-  { center: [135, 10], size: [50, 60], baseY: MESA_BASE, layers: 4, layerH: [5, 10], seed: 105 },
-  { center: [30, -165], size: [70, 50], baseY: MESA_BASE, layers: 5, layerH: [8, 16], seed: 106 },
-  { center: [-75, -200], size: [90, 60], baseY: MESA_BASE, layers: 6, layerH: [9, 18], seed: 107 },
-  { center: [-135, 120], size: [70, 60], baseY: MESA_BASE, layers: 4, layerH: [5, 11], seed: 108 },
-  { center: [140, 125], size: [70, 60], baseY: MESA_BASE, layers: 5, layerH: [6, 12], seed: 109 },
+/**
+ * A2 계단형 하이트필드 지형 레이아웃 (생성기: world/terrain/terrainField.ts, 수치: config/terrainParams.ts, 설명: docs/TERRAIN.md).
+ * 플레이 영역은 평탄한 고원(y=0, 반폭 ≈ 82m = 외곽 벽 바로 뒤)이고, 그 바깥은 계곡 → 메사 → 산맥으로 떨어진다. 고원 바깥은 충돌 벽 너머라 시각 전용.
+ * 평탄 패드·램프는 노이즈·둔덕보다 우선한다 (협곡 카빙은 패드보다도 우선).
+ */
+const TERRAIN_PADS: TerrainPad[] = [
+  { id: 'spawn', center: [0, 52], radius: 18, y: 0, blend: 8, note: '스폰 평지' },
+  { id: 'twinDrop', center: [T.x, T.z - 6], radius: 40, y: 0, blend: 14, note: '쌍둥이 낙하 구역 용지: 탑 밑동을 품은 반경 40m 평탄 패드 (협곡 북쪽 가장자리 z=-18 에 접하도록 탑 중심에서 6m 북쪽) — 다음 게임플레이 작업 (b)' },
 ];
-export interface MesaPart extends BoxPart { /** 맵 중심을 향한 면만 만든다 (바깥 면은 맵 안에서 안 보인다) */ center: [number, number] }
+/** 고원 둔덕 (계단 절벽 전경용, top 은 층 높이 3m 의 배수). 오를 수 없는 3m 층 단차라서 걸어서 오르는 길은 RAMPS 가 만든다 */
+const TERRAIN_BLUFFS: BluffDef[] = [
+  { center: [68, 71], size: [24, 18], top: 6 },
+  { center: [-68, 70], size: [24, 20], top: 9 },
+  { center: [70, -66], size: [20, 24], top: 6 },
+];
+/** 램프 회랑: 경사 ≤ 0.18 (2m 칸당 ≤ 0.36m < 자동 계단 한계 0.5m). 끝은 둔덕 윗면 안쪽까지. 둔덕 윗면까지 걸어서 오른다 */
+const TERRAIN_RAMPS: RampDef[] = [
+  { from: [26, 70], to: [70, 70], width: 6, y0: 0, y1: 6 },
+  { from: [66, -30], to: [66, -64], width: 6, y0: 0, y1: 6 },
+];
+/** 계곡에서 솟는 메사 (옛 시각 전용 박스 메사를 대체). top 은 고원 윗면 기준 m */
+const TERRAIN_MASSIFS: MassifDef[] = [
+  { center: [-20, -190], radius: 55, top: 9, seed: 201 },
+  { center: [60, -235], radius: 70, top: 27, seed: 202 },
+  { center: [-125, -215], radius: 60, top: 18, seed: 203 },
+  { center: [150, -150], radius: 65, top: 18, seed: 204 },
+  { center: [205, -55], radius: 55, top: 9, seed: 205 },
+  { center: [175, 25], radius: 48, top: 9, seed: 206 },
+  { center: [170, 125], radius: 60, top: 18, seed: 207 },
+  { center: [110, 200], radius: 70, top: 27, seed: 208 },
+  { center: [-10, 190], radius: 55, top: 9, seed: 209 },
+  { center: [-140, 180], radius: 65, top: 18, seed: 210 },
+  { center: [-190, 60], radius: 60, top: 18, seed: 211 },
+  { center: [-175, -45], radius: 45, top: 9, seed: 212 },
+  { center: [-210, -135], radius: 75, top: 27, seed: 213 },
+  { center: [-135, -20], radius: 24, top: 9, seed: 214 },
+  { center: [128, -128], radius: 22, top: 9, seed: 215 },
+  { center: [40, -140], radius: 26, top: 18, seed: 216 },
+  { center: [-100, -135], radius: 20, top: 9, seed: 217 },
+];
 
 export const MAP = {
   /** 한 변 길이. 외곽은 보이지 않는 충돌 벽(지평선을 가리지 않음) */
@@ -130,8 +157,11 @@ export const MAP = {
   /** 샌드박스 단계에서는 몹을 비운다 (몹 유지 여부 미정. 시스템은 그대로 둠) */
   mobSpawns: [] as MobSpawnDef[],
 
-  /** 맵 밖 층층 절벽 (시각 전용). 황혼 프리셋에서만 그린다 */
-  mesas: MESAS.flatMap((m) => mesaBlocks(m).map((b): MesaPart => ({ ...b, center: m.center }))),
+  /** 협곡 (x 방향으로 맵 전체를 가로지른다). 하이트필드가 같은 값으로 카빙한다 */
+  canyon: CANYON,
+
+  /** A2 하이트필드 지형 레이아웃 (패드·둔덕·램프·메사) */
+  terrain: { pads: TERRAIN_PADS, bluffs: TERRAIN_BLUFFS, ramps: TERRAIN_RAMPS, massifs: TERRAIN_MASSIFS },
 
   /** 협곡 벽 층층 돌출 (시각 전용, 충돌 없음). 계단·다리 잔해 구간은 비운다 */
   ledgeParts: canyonLedges(
