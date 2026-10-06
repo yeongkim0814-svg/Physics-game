@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { VISUAL } from '../config/settings';
+import { LP } from '../render/style';
 import voxelJson from '../assets/protagonist_voxels.json';
 import { budgetOf, decodeAndBuild } from './voxelBuild';
 import { decodeRuns, decodeVoxels, encodeRuns, paletteRgb, SYMBOL_PART_SHIFT, type VoxelFile, type VoxelGrid } from './voxelCodec';
@@ -8,7 +9,7 @@ import { NODES, nodeLocalPosition, partBounds } from './voxelParts';
 
 const FILE = voxelJson as unknown as VoxelFile;
 const V = VISUAL.voxelCharacter;
-const BUILD = { aoCurve: V.aoCurve, colorScale: VISUAL.lowpoly.character.exposure, aoPerFace: V.aoPerFace };
+const BUILD = { aoCurve: V.aoCurve, colorScale: LP.character.exposure * V.exposureScale, aoPerFace: V.aoPerFace };
 
 const tiny = (cells: [number, number, number, number, number][], nx = 4, ny = 4, nz = 4): VoxelGrid => {
   const g: VoxelGrid = { nx, ny, nz, part: new Uint8Array(nx * ny * nz), color: new Uint8Array(nx * ny * nz) };

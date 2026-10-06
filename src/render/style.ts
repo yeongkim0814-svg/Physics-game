@@ -1,4 +1,5 @@
 import { VISUAL } from '../config/settings';
+import type { LowpolyPreset } from '../config/lowpolyPresets';
 
 export type VisualStyle = 'lowpoly' | 'ps1';
 
@@ -19,7 +20,25 @@ function resolveStyle(): VisualStyle {
 export const STYLE: VisualStyle = resolveStyle();
 export const isPS1 = STYLE === 'ps1';
 
+export type TimeOfDay = 'dusk' | 'day';
+
+/** 시간대: VISUAL.lowpoly.timeOfDay, URL `?tod=day|dusk` 로 덮어쓰기 (ps1 에서는 무시) */
+function resolveTod(): TimeOfDay {
+  try {
+    if (typeof location !== 'undefined') {
+      const q = new URLSearchParams(location.search).get('tod');
+      if (q === 'day' || q === 'dusk') return q;
+    }
+  } catch { /* 기본값 */ }
+  return VISUAL.lowpoly.timeOfDay;
+}
+
+export const TOD: TimeOfDay = resolveTod();
+/** 활성 로우폴리 시간대 프리셋 (안개·조명·하늘·지형 팔레트·캐릭터 보정 등) */
+export const LP = VISUAL.lowpoly.presets[TOD];
+export const isDusk = !isPS1 && TOD === 'dusk';
+
 /** 현재 스타일의 안개/조명 수치 (GameLoop 장면 설정용) */
-export const ENV = isPS1
-  ? { fog: VISUAL.fog, lighting: { sky: VISUAL.lighting.ambient, ground: VISUAL.lighting.ambientGround, hemiIntensity: VISUAL.lighting.ambientIntensity, sun: VISUAL.lighting.sun, sunIntensity: VISUAL.lighting.sunIntensity, sunDir: VISUAL.lighting.sunDir, sunDistance: VISUAL.lighting.sunDistance } }
-  : { fog: VISUAL.lowpoly.fog, lighting: VISUAL.lowpoly.lighting };
+export const ENV: { fog: LowpolyPreset['fog']; lighting: LowpolyPreset['lighting'] } = isPS1
+  ? { fog: VISUAL.fog, lighting: { sky: VISUAL.lighting.ambient, ground: VISUAL.lighting.ambientGround, hemiIntensity: VISUAL.lighting.ambientIntensity, sun: VISUAL.lighting.sun, sunIntensity: VISUAL.lighting.sunIntensity, sunDir: [...VISUAL.lighting.sunDir] as [number, number, number], sunDistance: VISUAL.lighting.sunDistance } }
+  : { fog: LP.fog, lighting: LP.lighting };

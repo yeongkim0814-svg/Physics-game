@@ -28,9 +28,9 @@ describe('탈색', () => {
 });
 
 describe('낮 하늘 그라디언트', () => {
-  const S = VISUAL.lowpoly.sky;
+  const D = VISUAL.lowpoly.presets.day, S = D.sky;
   it('지평선=안개색, 천정=zenith, 고도가 오를수록 청색 쪽(R 감소)', () => {
-    expect(skyColorAt(0, S)).toBe(VISUAL.lowpoly.fog.color);
+    expect(skyColorAt(0, S)).toBe(D.fog.color);
     expect(skyColorAt(-0.5, S)).toBe(S.horizon);
     expect(skyColorAt(1, S)).toBe(S.zenith);
     expect((skyColorAt(0.8, S) >> 16) & 255).toBeLessThan((skyColorAt(0.1, S) >> 16) & 255);

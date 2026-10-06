@@ -36,6 +36,7 @@
 | M1f | 주인공 모델: `CharacterModel` 구현체(`protagonistCharacter`, 데이터 `data/protagonist.ts`) — 안경 쓴 전직 과학자, 구부정한 탐험가 자세, 걷기/공중/조준/반동/숨쉬기. placeholder 는 폴백 유지 | done |
 | M1g | 비주얼 전환(BotW풍 로우폴리): `VISUAL.style` 프리셋(기본 lowpoly, ps1 롤백 유지), 재질 팩토리 `createMaterial`, 낮 하늘 돔·해·구름, 플랫 셰이딩+정점색, 네이티브 해상도 파이프라인(+선택 외곽선), 탈색 파라미터(재질/지역), 장식·블롭 그림자 | done |
 | M1h | 주인공 재제작(일러스트 기준): 날씬한 7.4등신 로프트 로우폴리(≈1,900 tri)·정점 AO·천 텍스처·림 라이트, 얼굴 텍스처(일러스트 크롭, 정면 투영), 태블릿형 휴대 장치, 발 접지 보정, 재질 selfGlow/rim 옵션 | done |
+| M1i | 황혼 블록 비주얼+원경 백드롭: `timeOfDay` 프리셋(dusk 기본/day 보관), 블록 지형 모자이크 빌더·계단식 단차·메사·협곡 돌출, 생성 백드롭 파노라마(`scripts/make_backdrop.py`), 탑 빛기둥·청록 창문·떠 있는 파편·높이 안개 면, 캐릭터 조명 재조정 | done |
 | M1j | 주인공 복셀 카빙: 사용자 도면(정면·측면·후면)을 `scripts/carve_character.py` 로 부위별 슈퍼엘립스 카빙·투영 색칠·팔레트 양자화 → `protagonist_voxels.json`, 런타임 그리디 메싱(≈5,800 tri, 19 메시)·복셀 AO·부위 그룹(머리/몸통/골반/팔/다리/부츠/앞뒤 자락/천 자락/발광 장치) 절차 애니메이션. 기존 M1h 모델은 `?char=legacy` 폴백으로 유지 | done |
 | M1(b) | todo | todo |
 | M1(c) | 증거 카드(onLanded 기록 → 카드) | todo |

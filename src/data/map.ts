@@ -1,5 +1,5 @@
 import type { MobKind } from '../core/types';
-import type { StairDef, Vec3 } from '../world/mapGen';
+import { canyonLedges, mesaBlocks, terraceBlocks, type BoxPart, type MesaDef, type StairDef, type TerraceDef, type Vec3 } from '../world/mapGen';
 
 /**
  * 말라붙은 해안 도시 일부 (GAME_DESIGN 9절). 단위 m, 좌표 x/z 는 맵 중심 기준, 지면 윗면 y=0.
@@ -9,14 +9,15 @@ import type { StairDef, Vec3 } from '../world/mapGen';
  * 맵 밖 먼 곳에는 안개 너머 랜드마크 실루엣(landmarks)과 달이 있다.
  */
 export type BlockKind = 'concrete' | 'metal';
-export interface BlockDef { pos: Vec3; size: Vec3; kind: BlockKind }
+/** look = 황혼 블록 지형의 팔레트 (기본 rock). moss = 이끼 확률 배율 */
+export interface BlockDef { pos: Vec3; size: Vec3; kind: BlockKind; look?: 'rock' | 'earth' | 'cliff'; moss?: number }
 export interface StairMapDef extends StairDef { kind: BlockKind }
 export interface WaterDef { center: [number, number]; size: [number, number] }
 export interface MobSpawnDef { kind: MobKind; pos: [number, number, number] }
 export interface GroundDef { pos: Vec3; size: Vec3 }
 /** 안개 무시 실루엣 (맵 밖 원경). band 는 밑동의 탈색 구간 */
-/** color/band.color = PS1 실루엣색(발광), lowColor/band.lowColor = 로우폴리 낮 색(안개 원근으로 청백색에 묻힌다) */
-export interface LandmarkDef { pos: Vec3; size: Vec3; color: number; lowColor: number; band?: { height: number; color: number; lowColor: number } }
+/** color/band.color = PS1 실루엣색(발광), lowColor/band.lowColor = 로우폴리 낮 색(안개 원근으로 청백색에 묻힌다), duskColor = 황혼 실루엣색(보라, 안개에 잠긴다) */
+export interface LandmarkDef { pos: Vec3; size: Vec3; color: number; lowColor: number; duskColor: number; band?: { height: number; color: number; lowColor: number; duskColor: number } }
 
 const C = (pos: Vec3, size: Vec3): BlockDef => ({ pos, size, kind: 'concrete' });
 
@@ -36,6 +37,36 @@ const TH = T.w / 2;
 const TS_BAND = TH + TS.width / 2;                          // 탑 중심에서 계단 폭 중심까지
 const TS_EDGE = TH - TS.stepD / 2;                          // 코너에서 첫 단 중심까지
 const PARAPET = { h: 0.9, t: 0.4 };
+
+// --- M1i 황혼 블록 지형 ---
+/** 완만한 계단식 단차 (층마다 0.4m ≤ 자동 계단 한계 0.5m, 층 사이 안쪽 후퇴 ≥ 1m 라 걸어서 오른다). 기존 블록·계단·스폰과 겹치지 않는 곳에 둔다 */
+const TERRACES: TerraceDef[] = [
+  { center: [-28, 44], size: [16, 12], layers: 4, stepH: 0.4, inset: 1.6 },
+  { center: [30, 40], size: [14, 14], layers: 3, stepH: 0.4, inset: 1.8 },
+  { center: [-60, 48], size: [18, 14], layers: 5, stepH: 0.4, inset: 1.5 },
+  { center: [56, 52], size: [16, 12], layers: 4, stepH: 0.4, inset: 1.6 },
+  { center: [-4, 33], size: [10, 8], layers: 3, stepH: 0.4, inset: 1.2 },
+  { center: [-40, -30], size: [14, 12], layers: 3, stepH: 0.4, inset: 1.6 },
+  { center: [-8, -52], size: [12, 10], layers: 4, stepH: 0.4, inset: 1.2 },
+  { center: [25, -55], size: [12, 12], layers: 3, stepH: 0.4, inset: 1.6 },
+  { center: [66, 6], size: [10, 12], layers: 3, stepH: 0.4, inset: 1.3 },
+];
+const terraceBlocksAll: BlockDef[] = TERRACES.flatMap((t) => terraceBlocks(t).map((b): BlockDef => ({ ...b, kind: 'concrete', look: 'earth', moss: 1.8 })));
+
+/** 맵 밖 먼 층층 절벽(시각 전용, 충돌 없음, 외곽 벽 너머). 평원 윗면 y = -0.4 에서 쌓는다 */
+const MESA_BASE = -0.4;
+const MESAS: MesaDef[] = [
+  { center: [-140, -70], size: [90, 70], baseY: MESA_BASE, layers: 6, layerH: [7, 15], seed: 101 },
+  { center: [-125, 20], size: [60, 70], baseY: MESA_BASE, layers: 5, layerH: [6, 12], seed: 102 },
+  { center: [-175, -150], size: [80, 80], baseY: MESA_BASE, layers: 7, layerH: [9, 18], seed: 103 },
+  { center: [150, -90], size: [80, 60], baseY: MESA_BASE, layers: 6, layerH: [7, 14], seed: 104 },
+  { center: [135, 10], size: [50, 60], baseY: MESA_BASE, layers: 4, layerH: [5, 10], seed: 105 },
+  { center: [30, -165], size: [70, 50], baseY: MESA_BASE, layers: 5, layerH: [8, 16], seed: 106 },
+  { center: [-75, -200], size: [90, 60], baseY: MESA_BASE, layers: 6, layerH: [9, 18], seed: 107 },
+  { center: [-135, 120], size: [70, 60], baseY: MESA_BASE, layers: 4, layerH: [5, 11], seed: 108 },
+  { center: [140, 125], size: [70, 60], baseY: MESA_BASE, layers: 5, layerH: [6, 12], seed: 109 },
+];
+export interface MesaPart extends BoxPart { /** 맵 중심을 향한 면만 만든다 (바깥 면은 맵 안에서 안 보인다) */ center: [number, number] }
 
 export const MAP = {
   /** 한 변 길이. 외곽은 보이지 않는 충돌 벽(지평선을 가리지 않음) */
@@ -75,7 +106,12 @@ export const MAP = {
     C([T.x, T.h + PARAPET.h / 2, T.z + TH - PARAPET.t / 2], [T.w, PARAPET.h, PARAPET.t]),
     C([T.x + TH - PARAPET.t / 2, T.h + PARAPET.h / 2, T.z], [PARAPET.t, PARAPET.h, T.w]),
     C([T.x - TH + PARAPET.t / 2, T.h + PARAPET.h / 2, T.z - 2.5], [PARAPET.t, PARAPET.h, 9]),
+    // --- M1i 완만한 계단식 단차 ---
+    ...terraceBlocksAll,
   ] as BlockDef[],
+
+  /** 탑 제원 (창문·빛기둥 위치용) */
+  tower: { x: T.x, z: T.z, w: T.w, h: T.h, roofY: T.h + PARAPET.h },
 
   stairs: [
     // 탑: 남면(동쪽으로) → 동면(북쪽으로) → 북면(서쪽으로) → 서면(남쪽으로). 구간 끝 높이 8 / 16 / 24 / 30m
@@ -94,11 +130,26 @@ export const MAP = {
   /** 샌드박스 단계에서는 몹을 비운다 (몹 유지 여부 미정. 시스템은 그대로 둠) */
   mobSpawns: [] as MobSpawnDef[],
 
+  /** 맵 밖 층층 절벽 (시각 전용). 황혼 프리셋에서만 그린다 */
+  mesas: MESAS.flatMap((m) => mesaBlocks(m).map((b): MesaPart => ({ ...b, center: m.center }))),
+
+  /** 협곡 벽 층층 돌출 (시각 전용, 충돌 없음). 계단·다리 잔해 구간은 비운다 */
+  ledgeParts: canyonLedges(
+    { perWall: 34, depth: [0.5, 1.2], thick: [1, 2.6], width: [4, 12], seed: 41 },
+    CANYON, [-82, 82], [[-72, -33], [33, 72], [10, 20]],
+  ),
+
+  /**
+   * 목적지(관측소) 후보: 구역 중심의 관측소 방향. 백드롭의 성 실루엣·빛기둥은 이 방위(원점 기준)에 그려진다
+   * (VISUAL.lowpoly.backdrop.beaconAzimuthDeg 와 일치해야 한다 — 테스트). 안개 너머라 위치만 기록하고 메시는 없다.
+   */
+  destinations: [{ id: 'observatory', pos: [57, 120, -325] as Vec3, note: '관측소: 성 실루엣 정상의 빛기둥' }],
+
   /** 지평선 위로 솟은 원경 실루엣. 안개를 무시하고 밑동만 탈색된 느낌 */
   landmarks: [
-    { pos: [70, 70, -330], size: [22, 140, 22], color: 0x2b2750, lowColor: 0xd9c4a0, band: { height: 30, color: 0x8d8a96, lowColor: 0xe0a85a } },
-    { pos: [-120, 35, -310], size: [30, 70, 20], color: 0x2f2b58, lowColor: 0xb7c3d6 },
-    { pos: [-10, 20, -340], size: [60, 40, 16], color: 0x342f5e, lowColor: 0xcdb48e },
+    { pos: [143, 35, -297], size: [26, 70, 22], color: 0x2b2750, lowColor: 0xd9c4a0, duskColor: 0x3a2f62, band: { height: 22, color: 0x8d8a96, lowColor: 0xe0a85a, duskColor: 0x6a5a8a } },
+    { pos: [-150, 40, -300], size: [30, 80, 20], color: 0x2f2b58, lowColor: 0xb7c3d6, duskColor: 0x40356a },
+    { pos: [-30, 18, -340], size: [60, 36, 16], color: 0x342f5e, lowColor: 0xcdb48e, duskColor: 0x4a3e72 },
   ] as LandmarkDef[],
 
   /** 하늘의 달 (크림색, 안개 무시, 'ps1' 전용. 낮 프리셋에서는 그리지 않는다) */

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { isPS1 } from './style';
+import { isPS1, TOD } from './style';
 
 // 색을 코드에서 쓴 그대로 출력 (후처리 색 계산 단순화). Color 생성보다 먼저 설정해야 한다.
 THREE.ColorManagement.enabled = false;
@@ -51,8 +51,32 @@ const COL_LOWPOLY: { [K in keyof typeof COL_PS1]: number } = {
   red: COL_PS1.red,
 };
 
+/**
+ * 로우폴리 황혼 팔레트 (M1i, 목표 이미지): 갈색·구리·적갈색 암석, 남보라 그늘, 올리브 이끼. 알베도는 호박 햇빛(×3.7)에 날아가지 않게 어둡게.
+ * 기능색(cyan/amber/green/red)은 모든 팔레트에서 동일.
+ */
+const COL_DUSK: { [K in keyof typeof COL_PS1]: number } = {
+  stone: 0x8a6458,
+  stoneLight: 0xa88068,
+  stoneDark: 0x5e4a62,
+  moss: 0x6b7a2e,
+  verdigris: 0x4a8a84,
+  cream: 0xe6d8c0,
+  dust: 0xb08a68,
+  sandDark: 0x7a5a42,
+  shade: 0x3a3258,
+  copperDark: 0x6a3e30,
+  copper: 0xc0804c,
+  grout: 0x4a4066,
+  sand: 0x8c6444,
+  cyan: COL_PS1.cyan,
+  amber: COL_PS1.amber,
+  green: COL_PS1.green,
+  red: COL_PS1.red,
+};
+
 /** 현재 스타일의 환경 팔레트 */
-export const COL: { [K in keyof typeof COL_PS1]: number } = isPS1 ? COL_PS1 : COL_LOWPOLY;
+export const COL: { [K in keyof typeof COL_PS1]: number } = isPS1 ? COL_PS1 : TOD === 'dusk' ? COL_DUSK : COL_LOWPOLY;
 
 /** 낮 하늘(로우폴리) 색은 settings.ts VISUAL.lowpoly.sky 에 있다 */
 /** PS1 노을 하늘 그라디언트 (위 → 지평선). 지평선 색은 VISUAL.fog.color 와 맞춘다 */

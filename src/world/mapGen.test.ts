@@ -268,3 +268,41 @@ describe('mapGen', () => {
     });
   });
 });
+
+import { canyonLedges, mesaBlocks, terraceBlocks } from './mapGen';
+import { MAP } from '../data/map';
+
+describe('M1i 지형 생성기', () => {
+  it('테라스: 층마다 stepH 만큼 오르고 안쪽으로 후퇴 (오를 수 있는 높이)', () => {
+    const t = terraceBlocks({ center: [0, 0], size: [16, 12], layers: 4, stepH: 0.4, inset: 1.6 });
+    expect(t.length).toBe(4);
+    t.forEach((b, k) => {
+      expect(b.pos[1] + b.size[1] / 2).toBeCloseTo((k + 1) * 0.4, 6);
+      expect(b.size[0]).toBeCloseTo(16 - 3.2 * k, 6);
+    });
+  });
+  it('맵의 테라스 단차는 자동 계단 한계(0.5m) 이하, 층 후퇴 ≥ 1m', () => {
+    const terr = MAP.blocks.filter((b) => b.look === 'earth');
+    expect(terr.length).toBeGreaterThan(10);
+    for (const b of terr) expect(b.size[1]).toBeLessThanOrEqual(0.5);
+  });
+  it('메사: 결정적, 위로 갈수록 작아지고 층이 맞닿는다', () => {
+    const d = { center: [0, 0] as [number, number], size: [80, 60] as [number, number], baseY: -0.4, layers: 6, layerH: [5, 10] as [number, number], seed: 3 };
+    const a = mesaBlocks(d), b = mesaBlocks(d);
+    expect(a).toEqual(b);
+    for (let i = 1; i < a.length; i++) {
+      expect(a[i].size[0]).toBeLessThan(a[i - 1].size[0]);
+      expect(a[i].pos[1] - a[i].size[1] / 2).toBeCloseTo(a[i - 1].pos[1] + a[i - 1].size[1] / 2, 6);
+    }
+  });
+  it('협곡 돌출: skip 구간 제외, 돌출 길이 ≤ depth.max+0.3, 협곡 벽 근처', () => {
+    const c = { zMin: -18, zMax: -4, depth: 14 };
+    const l = canyonLedges({ perWall: 30, depth: [0.5, 1.2], thick: [1, 2], width: [4, 10], seed: 1 }, c, [-80, 80], [[-20, 20]]);
+    expect(l.length).toBeGreaterThan(10);
+    for (const p of l) {
+      expect(p.pos[0] + p.size[0] / 2 <= -20 || p.pos[0] - p.size[0] / 2 >= 20).toBe(true);
+      expect(Math.abs(p.pos[2] - c.zMax) < 2 || Math.abs(p.pos[2] - c.zMin) < 2).toBe(true);
+      expect(p.size[2]).toBeLessThanOrEqual(1.5 + 1e-6);
+    }
+  });
+});

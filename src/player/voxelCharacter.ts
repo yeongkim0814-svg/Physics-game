@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import { createMaterial } from '../render/materials';
-import { isPS1 } from '../render/style';
+import { isPS1, LP } from '../render/style';
 import { followFactor } from './cameraMath';
 import type { CharacterModel, CharacterState } from './CharacterModel';
 import { advancePhase, blendPose, footDrop, REST_POSE, targetPose } from './protagonistPose';
@@ -13,7 +13,7 @@ import { nodeLocalPosition } from './voxelParts';
 
 const V = VISUAL.voxelCharacter;
 const C = VOXEL_POSE_CONFIG;
-const R = VISUAL.lowpoly.character;
+const R = LP.character;
 
 function toGeometry(m: MeshData): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
@@ -32,7 +32,7 @@ function toGeometry(m: MeshData): THREE.BufferGeometry {
  * 자세는 protagonistPose(걷기·공중·조준·반동·숨쉬기)를 재사용하고 자락(다리 추종)·천(사인파)을 더한다.
  */
 export function voxelCharacter(): CharacterModel {
-  const exposure = isPS1 ? V.ps1Exposure : V.exposure;
+  const exposure = isPS1 ? V.ps1Exposure : R.exposure * V.exposureScale;
   const { nodes } = decodeAndBuild(VOXEL_FILE, { aoCurve: V.aoCurve, colorScale: exposure, aoPerFace: V.aoPerFace });
   const P = VOXEL_FILE.pivots;
 

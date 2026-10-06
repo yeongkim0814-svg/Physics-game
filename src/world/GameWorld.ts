@@ -9,7 +9,10 @@ import { createBoxGeometryWithUV } from '../render/boxGeometry';
 import { floorTexture, metalTexture, skyTexture, waterTexture, wallTexture } from '../render/textures';
 import { lowpolyBox } from '../render/tint';
 import { DaySky } from '../render/daySky';
-import { isPS1 } from '../render/style';
+import { isPS1, LP } from '../render/style';
+import { Backdrop } from '../render/backdrop';
+import { buildBlockMesh, type BoxSpec, type FaceKey, type PaletteKey, type TerrainLook } from './blockTerrain';
+import { Atmosphere } from './atmosphere';
 import { buildDecor } from './buildDecor';
 import { VISUAL } from '../config/settings';
 import { TUNING } from '../config/tuning';
@@ -56,6 +59,12 @@ export class GameWorld {
   private tmpDim = (c: number, k: number) => new THREE.Color(c).multiplyScalar(k);
   /** 'lowpoly' 낮 하늘 (ps1 에서는 null) */
   private daySky: DaySky | null = null;
+  /** 황혼 원경 백드롭·분위기 소품 (빛기둥·창문·파편·안개 면) */
+  private backdrop: Backdrop | null = null;
+  private atmosphere: Atmosphere | null = null;
+  /** 'lowpoly' 블록 지형: 정점색 모자이크 메시용 박스 목록 (하나의 드로우콜로 합친다) */
+  private terrainSpecs: BoxSpec[] = [];
+  private terrainMat: THREE.Material | null = null;
   /** 같은 재질을 쓰는 정적 박스는 하나의 메시로 합친다 ('lowpoly' 전용, 드로우콜 절감) */
   private batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
   private concreteMat: THREE.Material | null = null;
@@ -66,13 +75,57 @@ export class GameWorld {
     this.buildBlocks();
     this.buildStairs();
     this.buildWater();
+    this.buildTerrainExtras();
     this.flushBatches();
-    if (!isPS1) buildDecor(scene, GameWorld.PLAIN_Y);
+    if (!isPS1) {
+      this.flushTerrain();
+      buildDecor(scene, GameWorld.PLAIN_Y);
+      if (this.backdrop || LP.features.beam || LP.features.debris || LP.features.haze || LP.features.windows) this.atmosphere = new Atmosphere(scene);
+    }
   }
 
-  /** 카메라를 따라가는 하늘(돔·해·구름) 갱신. 렌더 직전 매 프레임 호출 */
+  /** 카메라를 따라가는 하늘(돔·해·구름)·백드롭 갱신, 분위기 소품 애니메이션. 렌더 직전 매 프레임 호출 */
   updateSky(cam: THREE.Camera, dt: number) {
     this.daySky?.update(cam, dt);
+    this.backdrop?.update(cam);
+    this.atmosphere?.update(dt);
+  }
+
+  /** 지형 박스를 모자이크 빌더 목록에 추가 (lowpoly) */
+  private terrain(pos: [number, number, number], size: [number, number, number], palette: PaletteKey, tile: number, faces?: Partial<Record<FaceKey, boolean>>, mossScale?: number) {
+    this.terrainSpecs.push({ pos, size, palette, tile, faces, mossScale });
+  }
+
+  private flushTerrain() {
+    if (!this.terrainSpecs.length) return;
+    const T = VISUAL.lowpoly.terrain;
+    const d = buildBlockMesh(this.terrainSpecs, LP.terrain as TerrainLook, T.maxTilesPerAxis, T.seed);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(d.positions, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(d.normals, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(d.colors, 3));
+    const mesh = new THREE.Mesh(geo, this.terrainMat ?? (this.terrainMat = createMaterial(0xffffff, { vertexColors: true })));
+    mesh.frustumCulled = false; // 맵 전체를 덮는 큰 메시 (바운딩 계산 비용 대신)
+    this.scene.add(mesh);
+    this.terrainSpecs = [];
+  }
+
+  /** 황혼 전용 시각 지형: 맵 밖 층층 절벽(메사), 협곡 벽 돌출 */
+  private buildTerrainExtras() {
+    if (isPS1) return;
+    const T = VISUAL.lowpoly.terrain;
+    if (LP.features.mesas) {
+      for (const m of MAP.mesas) {
+        const [cx, cz] = m.center;
+        this.terrain(m.pos, m.size, 'cliff', T.tile.cliff, { py: true, px: cx < 0, nx: cx > 0, pz: cz < 0, nz: cz > 0 }, 0.8);
+      }
+    }
+    if (LP.features.mesas) {
+      for (const l of MAP.ledgeParts) {
+        const southWall = l.pos[2] > MAP.ground[2].pos[2]; // 남쪽 벽(z 큰 쪽)에서 북쪽(-z)으로 돌출하면 앞면 = nz
+        this.terrain(l.pos, l.size, 'cliff', T.tile.ledge, { py: true, ny: true, px: true, nx: true, nz: southWall, pz: !southWall }, 0.5);
+      }
+    }
   }
 
   /** 수평 좌표가 물웅덩이 안인가 (T6 누전 판정) */
@@ -122,14 +175,27 @@ export class GameWorld {
 
   private buildGround() {
     const S = MAP.size, H = MAP.wallHeight;
+    const T0 = VISUAL.lowpoly.tint, TT = VISUAL.lowpoly.terrain.tile;
     const floorMat = this.batched(isPS1
       ? createMaterial(0xffffff, { map: floorTexture() })
       : createMaterial(COL.sand, { vertexColors: true }));
-    const T0 = VISUAL.lowpoly.tint;
-    for (const g of MAP.ground) this.box(g.pos, g.size, floorMat, true, true, T0.groundSegment);
+    if (isPS1) {
+      for (const g of MAP.ground) this.box(g.pos, g.size, floorMat, true, true, T0.groundSegment);
+    } else {
+      // 로우폴리: 충돌만 만들고 비주얼은 블록 지형 빌더로 (윗면 earth 타일 + 협곡을 향한 벽면 cliff 타일 + 밑동 그늘)
+      MAP.ground.forEach((g, i) => {
+        addStaticBox(this.physics, g.pos, g.size);
+        this.terrain(g.pos, g.size, 'earth', TT.ground, { py: true, px: false, nx: false, pz: false, nz: false }, 0.35);
+        if (i === 0) this.terrain(g.pos, g.size, 'cliff', TT.cliff, { py: false, px: false, nx: false, pz: false, nz: true }); // 남쪽 땅의 협곡 쪽 벽
+        if (i === 1) this.terrain(g.pos, g.size, 'cliff', TT.cliff, { py: false, px: false, nx: false, pz: true, nz: false }); // 북쪽 땅의 협곡 쪽 벽
+      });
+    }
     // 맵 밖 평원: 보이기만 한다 (안개가 지평선을 지운다). 협곡을 덮지 않게 맵 바깥 띠 4개로 깔고, 지면보다 살짝 낮춘다
     const e = S / 2 + MAP.groundMargin, P = GameWorld.PLAIN_SIZE, T = MAP.groundThickness, py = GameWorld.PLAIN_Y - T / 2;
-    const strip = (cx: number, cz: number, sx: number, sz: number) => this.box([cx, py, cz], [sx, T, sz], floorMat, false, true, T0.farSegment);
+    const strip = (cx: number, cz: number, sx: number, sz: number) => {
+      if (isPS1) this.box([cx, py, cz], [sx, T, sz], floorMat, false, true, T0.farSegment);
+      else this.terrain([cx, py, cz], [sx, T, sz], 'earth', TT.far, { py: true, px: false, nx: false, pz: false, nz: false }, 0.4);
+    };
     strip(0, -(e + P) / 2, P * 2, P - e); strip(0, (e + P) / 2, P * 2, P - e);
     strip(-(e + P) / 2, 0, P - e, e * 2); strip((e + P) / 2, 0, P - e, e * 2);
     // 외곽 충돌 벽 (렌더 안 함: 원경 랜드마크가 가려지지 않게)
@@ -148,13 +214,25 @@ export class GameWorld {
   private buildSky() {
     if (isPS1) return this.buildSkyPS1();
     this.daySky = new DaySky(this.scene);
-    const seg = 25, desat = VISUAL.lowpoly.desat.landmarkBase;
+    if (LP.features.backdrop) this.backdrop = new Backdrop(this.scene);
+    const desat = VISUAL.lowpoly.desat.landmarkBase, key = LP.landmarkKey, tile = VISUAL.lowpoly.terrain.tile.landmark;
+    // 원경 실루엣: 단색 팔레트 + 약한 타일 변화 (안개 원근에 잠긴다)
+    const flat = (c: number): TerrainLook => ({ palettes: { rock: [c], earth: [c], cliff: [c], moss: [] }, lightAmp: 0.05, hueMix: 0, mossTop: 0, mossSide: 0, mossStrength: [0, 0], bottomShade: 1, shadeHeight: 1 });
+    const silhouette = (pos: [number, number, number], size: [number, number, number], color: number, desaturate: number) => {
+      const d = buildBlockMesh([{ pos, size, palette: 'rock', tile }], flat(color), VISUAL.lowpoly.terrain.maxTilesPerAxis, 5);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(d.positions, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(d.normals, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(d.colors, 3));
+      const m = new THREE.Mesh(geo, createMaterial(0xffffff, { vertexColors: true, desaturate }));
+      m.frustumCulled = false;
+      this.scene.add(m);
+    };
     for (const l of MAP.landmarks) {
-      this.box(l.pos, l.size, createMaterial(l.lowColor, { vertexColors: true }), false, true, seg);
+      silhouette(l.pos, l.size, l[key], 0);
       if (l.band) {
         const bs: [number, number, number] = [l.size[0] + 0.6, l.band.height, l.size[2] + 0.6];
-        this.box([l.pos[0], l.pos[1] - l.size[1] / 2 + l.band.height / 2, l.pos[2]], bs,
-          createMaterial(l.band.lowColor, { vertexColors: true, desaturate: desat }), false, true, seg);
+        silhouette([l.pos[0], l.pos[1] - l.size[1] / 2 + l.band.height / 2, l.pos[2]], bs, l.band[key], desat);
       }
     }
   }
@@ -203,9 +281,13 @@ export class GameWorld {
   }
 
   private buildBlocks() {
-    const place = (b: { pos: [number, number, number]; size: [number, number, number]; kind: BlockKind }) => {
+    const TT = VISUAL.lowpoly.terrain.tile;
+    const place = (b: BlockDef) => {
       const { mat, flasher } = this.blockMaterial(b.kind);
-      this.box(b.pos, b.size, mat);
+      if (!isPS1 && b.kind === 'concrete') {
+        addStaticBox(this.physics, b.pos, b.size);
+        this.terrain(b.pos, b.size, b.look ?? 'rock', TT.block, undefined, b.moss);
+      } else this.box(b.pos, b.size, mat);
       if (flasher) {
         for (const n of lineNodes(b.pos, b.size, TUNING.coil.chainRadius * 0.7)) {
           this.conductors.push(new ConductorNode(n, 'metal_structure', flasher));
@@ -216,10 +298,21 @@ export class GameWorld {
   }
 
   private buildStairs() {
+    const TT = VISUAL.lowpoly.terrain.tile;
     for (const s of MAP.stairs) {
       const { mat, flasher } = this.blockMaterial(s.kind);
-      stairBlocks(s).forEach((p, i) => {
-        this.box(p.pos, p.size, mat);
+      // 계단 한 단에서 보이는 면만: 윗면 + 양옆(진행 축의 직교 방향) + 낮은 쪽 챌판(마지막 단은 뒷면도)
+      const alongX = s.dir.endsWith('x'), plus = s.dir.startsWith('+');
+      const riser: FaceKey = alongX ? (plus ? 'nx' : 'px') : (plus ? 'nz' : 'pz');
+      const back: FaceKey = alongX ? (plus ? 'px' : 'nx') : (plus ? 'pz' : 'nz');
+      const sides: FaceKey[] = alongX ? ['pz', 'nz'] : ['px', 'nx'];
+      const parts = stairBlocks(s);
+      parts.forEach((p, i) => {
+        if (!isPS1 && s.kind === 'concrete') {
+          addStaticBox(this.physics, p.pos, p.size);
+          const faces: Partial<Record<FaceKey, boolean>> = { py: true, px: false, nx: false, pz: false, nz: false, [riser]: true, [sides[0]]: true, [sides[1]]: true, [back]: i === parts.length - 1 };
+          this.terrain(p.pos, p.size, 'rock', TT.stair, faces, 0.6);
+        } else this.box(p.pos, p.size, mat);
         // 금속 계단은 3단마다 노드 (간격 ≤ 연쇄 반경)
         if (flasher && i % 3 === 0) this.conductors.push(new ConductorNode(p.pos, 'metal_structure', flasher));
       });
