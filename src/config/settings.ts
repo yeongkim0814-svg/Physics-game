@@ -41,6 +41,10 @@ export const PERF = {
   autoResolutionStep: 0.8,
 } as const;
 
+export const UI = {
+  toastMs: 2200, // 알림이 떠 있는 시간 (ms)
+} as const;
+
 export const TOUCH = {
   /** 화면 왼쪽 이 비율 영역이 조이스틱, 나머지는 시점 드래그 */
   moveZoneWidth: 0.4,

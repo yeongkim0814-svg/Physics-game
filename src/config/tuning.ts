@@ -32,10 +32,6 @@ export const TUNING = {
     cameraKick: 0.018,     // 발사 시 시점 위로 튐 (rad)
     muzzleOffset: 0.6,     // 총구 위치 (눈에서 조준 방향으로 m)
   },
-  // 보조무기: 소형 사출기 = 운동량 사출기 대비 배율 (가볍고 반동 작음, 느리고 퍼짐 큼)
-  pocketLauncher: { projectileSpeedMul: 0.8, recoilMul: 0.55, spreadMul: 2, fireIntervalMul: 0.6 },
-  // 근접무기: 충격 블레이드. reach(m) 안, 시선 기준 coneDeg 안의 대상에 damage, interval(s) 간격
-  blade: { damage: 35, reach: 2.6, coneDeg: 70, interval: 0.55, durabilityCost: 1 },
   coil: {
     chargeTime: 1.5,       // 충전 1.0(=최대 위력)까지 걸리는 시간 (s)
     minCharge: 0.15,       // 이보다 적게 충전하고 놓으면 불발
@@ -46,42 +42,8 @@ export const TUNING = {
     chainRadius: 6, contactRadius: 2.5, snapRadius: 3, // snapRadius: 빔이 벽/바닥에 맞았을 때 근처 전도체로 이어붙이는 거리
     chainFalloff: 0.7, chainMaxHops: 8,
     insulatorDamageMul: 0.25, // 절연 몹 전기 피해 배율 (data/mobs.ts 가 사용)
-    leakDamageMul: 1,      // 누전(자기 피해) 배율 — 절연 피복이 줄인다
+    leakDamageMul: 1,      // 누전(자기 피해) 배율
     waterLeakDps: 15,      // 물웅덩이 위에서 충전 중일 때 초당 누전 피해 (충전량에 비례)
-  },
-  raid: {
-    // 레이드 시작 시 보관함에서 가져가는 재료 키트 (보관함에 있는 만큼만)
-    kit: { slag: 15, scrap: 15, ingot: 2 },
-    // 키트 합계가 이보다 적으면 보급품으로 채움 (재료를 다 잃고 진행 불능이 되는 것 방지)
-    minKitTotal: 10, rationMaterial: 'scrap',
-    extractHold: 1.0,   // 탈출 지점 안에서 버텨야 하는 시간 (s). 0 이면 도달 즉시 성공
-    extractDecay: 2.0,  // 지점을 벗어났을 때 진행도가 줄어드는 배율
-  },
-  // --- 2단계: 아지트(허브)·격자 인벤토리·연구 루프. 아이템/노드/레시피/개량 정의는 src/data/ 에 있다 ---
-  hub: {
-    /** 격자 크기 (칸). pendingH: 입고 초과분 임시 격자의 높이(충분히 크게) */
-    grid: { stash: { w: 10, h: 16 }, safe: { w: 2, h: 2 }, pockets: { w: 4, h: 1 }, pending: { w: 10, h: 40 } },
-    /** 분석·연구 시간 배율 (1 = 데이터 그대로, 0.1 = 10배 빠르게. 개발/튜닝용) */
-    timeScale: 1,
-    /** 샘플 변질(첫 버전은 꺼짐). 켜면 spoilSeconds 후 미분석 샘플이 'spoiled' 처리되도록 확장할 자리 */
-    sampleSpoil: { enabled: false, spoilSeconds: 86400 },
-    /** 수리: 부족한 내구도 durPerScrap 당 고철 1개. 내구도 0(파손) 수리는 추가 재료가 든다 */
-    repair: { durPerScrap: 20, brokenSurcharge: { ingot: 1 } as Record<string, number> },
-    /** 방어구: 피해 종류 → 저항 종류. 열 저항은 현재 레이드에 열 피해가 없어 정의만 있다 */
-    armor: {
-      resistOf: { physical: 'impact', fall: 'impact', electric: 'electric', leak: 'electric' } as Record<string, 'impact' | 'electric' | 'thermal'>,
-      wearPerDamage: 0.6,  // 받은 (경감 전) 피해 1당 방어구 내구도 감소
-      minSpeedMul: 0.5,    // 이동속도 페널티 하한
-    },
-    /** 격자 UI */
-    ui: {
-      cellPx: 36,          // 칸 한 변(px). 태블릿 터치 기준 (화면이 낮으면 아래 minCellPx 까지 줄여 격자 전체가 보이게 한다)
-      minCellPx: 26,
-      boardReservePx: 262, // 격자 위·아래 UI(상단바+탭+도구줄+머리글)가 차지하는 높이(px) — 격자에 쓸 수 있는 높이 = 화면 높이 − 이 값
-      dragThreshold: 8,    // 이 거리(px) 넘게 움직이면 드래그로 본다
-      tapConfirm: false,   // true: 첫 탭은 미리보기만, 같은 자리 두 번째 탭에서 배치
-      messageMs: 2200,
-    },
   },
   mobs: {
     radius: 0.4, height: 1.6,
