@@ -53,6 +53,18 @@ export const VISUAL = {
     airLeg: 0.55, airArm: 1.0, // 공중: 다리 벌림 / 왼팔 벌림
     fallLean: 0.25, leanVy: 12, // 낙하 시 상체 기울기 최대 각 / 그 각에 도달하는 하강 속도
     kickArm: 0.5, kickBack: 0.12, kickDecay: 14, // 반동 연출: 팔 들림(rad)/무기 뒤로(m)/복귀 속도
+    // --- 주인공 모델(M1f) 추가 수치. 색·치수는 data/protagonist.ts ---
+    restLean: 0.2,         // 기본 구부정 자세: 상체가 앞으로 숙인 각 (rad)
+    runLean: 0.1,          // 달릴수록 추가로 숙이는 각 (속도 비 1 기준)
+    headCounter: 0.85,     // 고개가 상체 숙임을 상쇄하는 비율 (1 = 항상 정면 수평)
+    headAimFollow: 0.5,    // 조준 시 고개가 카메라 pitch 를 따라가는 비율
+    kneeRest: 0.4,         // 서 있을 때 무릎 굽힘 (rad). 허벅지는 절반만큼 앞으로 (발은 엉덩이 아래 유지)
+    kneeWalk: 0.75,        // 걸을 때 앞으로 내딛는 다리의 무릎 굽힘 추가량
+    leftElbowRest: 0.35, leftElbowSwing: 0.8, leftArmRest: 0.06, // 맨손 팔: 기본 팔꿈치 굽힘 / 앞스윙 때 추가 굽힘 비 / 기본 앞쪽 각
+    weaponElbowRest: 0.55, weaponElbowAim: 0.15, // 무기 든 팔 팔꿈치: 비조준(어깨+팔꿈치=restArm) / 조준(어깨+팔꿈치=수평+pitch)
+    breathRate: 2.1, breathAmp: 0.014, // 숨쉬기(idle): 각속도(rad/s) / 가슴 부피 변화 비율(상체 각도에도 0.8배 반영)
+    airKnee: 0.8,          // 공중 앞다리 무릎 굽힘
+    kickTorso: 0.08,       // 반동 시 상체가 젖혀지는 각
   },
   /** 던지는 돌 색: 무거운 쪽이 더 어둡다 */
   throwable: { light: 0xb9a58a, heavy: 0x4a3b36 },
