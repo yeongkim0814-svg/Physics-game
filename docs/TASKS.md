@@ -34,6 +34,7 @@
 | M1(a) | 해안 도시 지형(탑·협곡·폐허·원경 랜드마크) + 석양 팔레트 + 돌 던지기 실험 환경(`world/Throwables.ts`, `onLanded` 이벤트) | done |
 | M1e | 3인칭 전환: 어깨 너머 카메라(충돌), 총구→조준점 발사, 교체 가능한 CharacterModel(placeholder), 참고 이미지 색감·질감(하늘 돔·벽돌/구리/모래 텍스처·조명) | done |
 | M1f | 주인공 모델: `CharacterModel` 구현체(`protagonistCharacter`, 데이터 `data/protagonist.ts`) — 안경 쓴 전직 과학자, 구부정한 탐험가 자세, 걷기/공중/조준/반동/숨쉬기. placeholder 는 폴백 유지 | done |
+| M1g | 비주얼 전환(BotW풍 로우폴리): `VISUAL.style` 프리셋(기본 lowpoly, ps1 롤백 유지), 재질 팩토리 `createMaterial`, 낮 하늘 돔·해·구름, 플랫 셰이딩+정점색, 네이티브 해상도 파이프라인(+선택 외곽선), 탈색 파라미터(재질/지역), 장식·블롭 그림자 | done |
 | M1(b) | todo | todo |
 | M1(c) | 증거 카드(onLanded 기록 → 카드) | todo |
 | M1(d) | todo | todo |
