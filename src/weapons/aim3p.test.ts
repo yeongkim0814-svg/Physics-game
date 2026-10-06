@@ -44,6 +44,17 @@ describe('muzzleDirection', () => {
     expect(d.length()).toBeCloseTo(1);
     expect(d.x).toBeLessThan(0);
   });
+  it('가까운 목표(nearDistance 안)는 카메라 정면 쪽으로 섞인다', () => {
+    const muzzle = v(0.34, 0.6, 0), target = v(0.55, 0, -0.7);
+    const raw = muzzleDirection(muzzle, target, FWD, 1);
+    const blended = muzzleDirection(muzzle, target, FWD, 1, 3);
+    expect(blended.angleTo(FWD)).toBeLessThan(raw.angleTo(FWD));
+    expect(blended.length()).toBeCloseTo(1);
+  });
+  it('nearDistance 이상 멀면 섞지 않는다', () => {
+    const muzzle = v(0.34, 1.2, 0), target = v(0.55, 1.2, -10);
+    expect(muzzleDirection(muzzle, target, FWD, 1, 3).distanceTo(muzzleDirection(muzzle, target, FWD, 1))).toBeCloseTo(0);
+  });
   it('목표가 총구와 같은 점이면 카메라 정면', () => {
     const d = muzzleDirection(v(1, 1, 1), v(1, 1, 1), FWD, 0.5);
     expect(d.equals(FWD)).toBe(true);

@@ -61,7 +61,7 @@ export class PlayerAvatar implements AimSource, ThrowSource, WeaponFeedback {
   private solve(from: THREE.Object3D): AimSolution {
     const origin = from.getWorldPosition(new THREE.Vector3());
     const target = this.cam.aimTarget(origin);
-    const dir = muzzleDirection(origin, target, this.cam.forward(this.tmp), TUNING.camera.maxAimDeviation);
+    const dir = muzzleDirection(origin, target, this.cam.forward(this.tmp), TUNING.camera.maxAimDeviation, TUNING.camera.aimNearDistance);
     return { origin, dir, target };
   }
 }
