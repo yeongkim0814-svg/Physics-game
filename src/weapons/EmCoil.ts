@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RAPIER } from '../core/physics';
 import type { Input } from '../core/input';
-import type { Conductor, Damageable } from '../core/types';
+import type { AimSource, Conductor, Damageable, WeaponFeedback } from '../core/types';
 import { TUNING } from '../config/tuning';
 import type { PlayerController } from '../player/PlayerController';
 import type { ArcEffects } from './ArcEffects';
@@ -9,7 +9,6 @@ import { perturbDirection } from './aim';
 import { arcDamage, chargeStep, nearestWithin, overchargeFraction } from './coilMath';
 import { propagate } from './conductorGraph';
 import { segmentSphereToi } from './launcherMath';
-import type { ViewModel } from './ViewModel';
 import type { Weapon } from './Weapon';
 
 const C = TUNING.coil;
@@ -18,7 +17,8 @@ const MUZZLE = TUNING.launcher.muzzleOffset;
 export interface CoilDeps {
   world: RAPIER.World;
   player: PlayerController;
-  view: ViewModel;
+  aim: AimSource;
+  fx: WeaponFeedback;
   arcs: ArcEffects;
   /** 맵의 정적 전도체(물/금속 구조물) */
   staticConductors: () => Conductor[];
@@ -66,8 +66,7 @@ export class EmCoil implements Weapon {
 
   update(dt: number, input: Input) {
     this.cooldown = Math.max(0, this.cooldown - dt);
-    this.d.view.update(dt);
-    this.d.view.setGlow(this.charge / C.overchargeMax);
+    this.d.fx.setGlow(this.charge / C.overchargeMax);
     this.status = '';
 
     if (!input.active) { this.cancel(); return; }
@@ -108,9 +107,9 @@ export class EmCoil implements Weapon {
     this.leakMul = C.leakDamageMul;
     this.last = { damage: arcDamage(C.maxDamage, charge), hits: 0, selfDamage: 0, hops: 0 };
 
-    const dir = perturbDirection(player.aimDirection(), C.spread);
-    const eye = player.eyePosition();
-    const origin = eye.clone().addScaledVector(dir, MUZZLE);
+    const aim = this.d.aim.muzzleAim();
+    const dir = perturbDirection(aim.dir, C.spread);
+    const origin = aim.origin.addScaledVector(dir, MUZZLE);
     this.playerPos.copy(player.position).setY(player.position.y + 0.9);
 
     // 빔: 월드(정적)와 몹 중 먼저 맞는 것
@@ -157,7 +156,7 @@ export class EmCoil implements Weapon {
     this.last.hits = hits.length;
 
     const frac = overchargeFraction(charge, C.overchargeAt, C.overchargeMax);
-    this.d.view.kick(0.6 + frac);
+    this.d.fx.kick(0.6 + frac);
     this.d.player.kick(TUNING.launcher.cameraKick * 0.8, 0);
     this.shots++;
   }

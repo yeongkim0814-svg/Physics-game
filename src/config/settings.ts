@@ -34,6 +34,18 @@ export const VISUAL = {
     ambient: 0x8f9be0, ambientIntensity: 1.15,
     sun: 0xffc27a, sunIntensity: 1.3, sunDir: [0.55, 0.32, 0.77] as [number, number, number], sunDistance: 40,
   },
+  /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
+  character: {
+    strideRate: 1.9,       // 걸음 위상 진행 (rad per m)
+    legSwing: 0.75, armSwing: 0.5, // 다리/팔 스윙 최대 각
+    bob: 0.035,            // 걸을 때 몸 상하 흔들림 (m)
+    poseSmooth: 16,        // 자세 보간 속도 (초당 지수 감쇠)
+    restArm: 0.9,          // 비조준 시 무기 든 팔이 앞으로 기운 각
+    aimArmBase: Math.PI / 2, // 조준 시 팔이 수평 (여기에 카메라 pitch 가 더해진다)
+    airLeg: 0.55, airArm: 1.0, // 공중: 다리 벌림 / 왼팔 벌림
+    fallLean: 0.25, leanVy: 12, // 낙하 시 상체 기울기 최대 각 / 그 각에 도달하는 하강 속도
+    kickArm: 0.5, kickBack: 0.12, kickDecay: 14, // 반동 연출: 팔 들림(rad)/무기 뒤로(m)/복귀 속도
+  },
   /** 던지는 돌 색: 무거운 쪽이 더 어둡다 */
   throwable: { light: 0xb9a58a, heavy: 0x4a3b36 },
 } as const;
@@ -56,6 +68,8 @@ export const DEBUG = {
 
 export const UI = {
   toastMs: 2200, // 알림이 떠 있는 시간 (ms)
+  /** 화면 중앙 조준점 (3인칭 조준선이 가리키는 곳) */
+  crosshair: { size: 18, thickness: 2, gap: 4, color: '#f2e3b8', outline: '#1a1640' },
 } as const;
 
 export const TOUCH = {

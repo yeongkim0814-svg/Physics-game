@@ -36,7 +36,7 @@ const KINDS: Record<StoneKind, { mass: number; radius: number; color: number }> 
 };
 
 /**
- * 던지는 돌 (Rapier dynamic 구). 시선 방향으로 던지거나(throwStone), 지정 위치에 놓는다(release).
+ * 던지는 돌 (Rapier dynamic 구). 조준 방향으로 던지거나(throwStone), 지정 위치에 놓는다(release).
  * 낙하 가속은 질량과 무관(공기저항 0). 처음 지면/구조물에 닿으면 gameEvents.onLanded 로 낙하 시간을 알린다.
  * 시간은 시뮬레이션 스텝 수 * world.timestep 이라 렌더 프레임률과 무관하다.
  *
@@ -72,10 +72,10 @@ export class Throwables {
     }
   }
 
-  /** 시선 방향으로 던진다 (눈 앞 muzzleOffset 에서 생성, 플레이어 속도 승계) */
+  /** 손에서 화면 중앙 조준점 방향으로 던진다 (손 앞 muzzleOffset 에서 생성, 플레이어 속도 승계) */
   throwStone(kind: StoneKind) {
-    const dir = this.source.aimDirection();
-    const pos = this.source.eyePosition().addScaledVector(dir, T.muzzleOffset);
+    const { origin, dir } = this.source.handAim();
+    const pos = origin.addScaledVector(dir, T.muzzleOffset);
     const vel = throwVelocity(dir, T.throwSpeed, this.source.velocity, T.inheritPlayerVelocity);
     return this.release(kind, pos, vel);
   }

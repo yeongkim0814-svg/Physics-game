@@ -1,8 +1,8 @@
 import type { Input } from '../core/input';
+import type { AimSource, WeaponFeedback } from '../core/types';
 import { TUNING } from '../config/tuning';
 import type { PlayerController } from '../player/PlayerController';
 import type { Projectiles } from './Projectiles';
-import type { ViewModel } from './ViewModel';
 import type { Weapon } from './Weapon';
 import { perturbDirection } from './aim';
 import { currentSpread, decayHeat, heatAfterShot, recoilDeltaV, recoilImpulse } from './launcherMath';
@@ -24,8 +24,9 @@ export class MomentumLauncher implements Weapon {
 
   constructor(
     private player: PlayerController,
+    private aimSource: AimSource,
     private projectiles: Projectiles,
-    private view: ViewModel,
+    private fx: WeaponFeedback,
   ) {}
 
   /** 현재 퍼짐 각(rad) — HUD 표시용 */
@@ -45,13 +46,12 @@ export class MomentumLauncher implements Weapon {
   update(dt: number, input: Input) {
     this.heat = decayHeat(this.heat, L.spread.recover, dt);
     this.cooldown = Math.max(0, this.cooldown - dt);
-    this.view.update(dt);
     if (!input.active || !input.fire || this.cooldown > 0) return;
 
-    // 방향: 조준 + 퍼짐(원뿔 내 균일 분포). 반동은 실제 발사 방향의 반대
-    const aim = this.player.aimDirection();
-    const dir = perturbDirection(aim, this.spread);
-    const origin = this.player.eyePosition().addScaledVector(dir, L.muzzleOffset);
+    // 방향: 총구→조준점 + 퍼짐(원뿔 내 균일 분포). 반동은 실제 발사 방향의 반대
+    const aim = this.aimSource.muzzleAim();
+    const dir = perturbDirection(aim.dir, this.spread);
+    const origin = aim.origin.addScaledVector(dir, L.muzzleOffset);
     this.projectiles.spawn(origin, dir, L.projectileSpeed, L.projectileMass, L.projectileColor);
 
     const J = recoilImpulse(L.projectileMass, L.projectileSpeed, L.recoil, L.recoilScale);
@@ -62,7 +62,7 @@ export class MomentumLauncher implements Weapon {
     this.heat = heatAfterShot(this.heat, L.spread.perShot, L.spread.max);
     const strength = Math.min(1.5, this.lastDeltaV / 8);
     this.player.kick(L.cameraKick * strength, (Math.random() - 0.5) * L.cameraKick * strength);
-    this.view.kick(strength);
+    this.fx.kick(strength);
 
     this.cooldown = L.fireInterval;
     this.shots++;
