@@ -13,8 +13,9 @@
 - 시스템 간 통신은 `src/core/types.ts` 인터페이스로 (구체 클래스 직접 의존 최소화)
 - 물리: Rapier(`@dimforge/rapier3d-compat`, `await RAPIER.init()` 필요)
 - 입력은 `core/input.ts` 의 통합 API(moveX/Y, lookDX/DY, fire, jumpPressed…)만 사용. 키/터치 직접 참조 금지
-- 렌더링: 스타일 프리셋 `VISUAL.style` ('lowpoly' 기본 = BotW풍 밝은 로우폴리·플랫 셰이딩·네이티브 해상도 / 'ps1' = 롤백용 PS1 파이프라인). 재질은 반드시 `render/materials.ts` 의 `createMaterial`(= `lambert` alias) **재질 팩토리 경유**(일반 Three 재질 직접 생성 금지: 안개·스타일 분기·탈색 파라미터가 빠짐). 아이템/NPC/기준점은 발광색으로 식별성 확보, 이상 지역은 탈색(채도)으로 표현
+- 렌더링: 스타일 프리셋 `VISUAL.style` ('lowpoly' 기본 = BotW풍 밝은 로우폴리·플랫 셰이딩·네이티브 해상도 / 'ps1' = 롤백용 PS1 파이프라인). 재질은 반드시 `render/materials.ts` 의 `createMaterial`(= `lambert` alias) **재질 팩토리 경유**(일반 Three 재질 직접 생성 금지: 안개·스타일 분기·탈색 파라미터가 빠짐). 시간대 프리셋 `VISUAL.lowpoly.timeOfDay`('dusk' 기본 = 영원한 황혼 블록 룩 / 'day' = 낮, URL `?tod=day`; 수치는 `config/lowpolyPresets.ts`, 지형은 `world/blockTerrain.ts` 모자이크 빌더, 원경은 `render/backdrop.ts` 파노라마 백드롭 `src/assets/backdrop_dusk.png`). 아이템/NPC/기준점은 발광색으로 식별성 확보, 이상 지역은 탈색(채도)으로 표현
 - 3인칭 어깨 너머 시점: 카메라=`player/ThirdPersonCamera`, 캐릭터는 `player/CharacterModel` 인터페이스(교체 지점 `createPlayerCharacter()`, 현재 `placeholderCharacter`). 발사/던지기는 총구(손)→화면 중앙 조준점 방향(`weapons/aim.ts`), 반동은 실제 발사 방향의 반대
+- **생성 에셋 허용**: `scripts/make_backdrop.py` 처럼 입력 없이 재현 가능한 생성 스크립트로 만든 에셋(`src/assets/backdrop_dusk.png`)은 '외부 에셋 없음' 위반이 아니다 (생성법 `docs/BACKDROP.md`)
 - 범위 제외: 서버·멀티플레이, 전투 필수화, 인벤토리·스킬 트리, 사운드
 
 ## 작업 규칙

@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { VISUAL } from '../config/settings';
+import { LP } from '../render/style';
 import { MAP } from '../data/map';
 import { createMaterial } from '../render/materials';
 import { inFootprint, scatter } from './decor';
 
-const D = VISUAL.lowpoly.decor;
+const D = LP.decor;
 
 /** 인스턴스 하나의 행렬: 위치·y축 회전·비균등 스케일 */
 const matrix = (x: number, y: number, z: number, rotY: number, sx: number, sy: number, sz: number) =>
@@ -33,6 +33,9 @@ const lerpColor = (a: number, b: number, t: number) => new THREE.Color(a).lerp(n
 export function buildDecor(scene: THREE.Scene, plainY: number) {
   const rect = (b: { pos: readonly number[]; size: readonly number[] }) => ({ c: [b.pos[0], b.pos[2]] as const, s: [b.size[0], b.size[2]] as const });
   const blocks = MAP.blocks.map(rect);
+  // 황혼: 맵 밖 층층 절벽(메사)과 겹치는 곳에는 나무·바위를 두지 않는다
+  const mesas = LP.features.mesas ? MAP.mesas.map(rect) : [];
+  const inMesa = (x: number, z: number) => mesas.some((b) => inFootprint(x, z, b.c, b.s, 6));
 
   // --- 맵 밖 평원 ---
   const treeMat = createMaterial(0xffffff);
@@ -41,7 +44,7 @@ export function buildDecor(scene: THREE.Scene, plainY: number) {
     new THREE.ConeGeometry(0.72, 1.6, 6).translate(0, 2.7, 0),
   ])!;
   const trunk = new THREE.CylinderGeometry(0.16, 0.24, 1.0, 5).translate(0, 0.5, 0);
-  const trees = scatter(D.seed, D.trees, D.treeRange);
+  const trees = scatter(D.seed, D.trees, D.treeRange, inMesa);
   const tScale = (r: number) => 1.4 + r * 1.4; // 나무 크기 계수 (전체 높이 ≈ 3.5×)
   scene.add(instanced(trunk, treeMat, trees.map((p) => {
     const t = tScale(p.r[0]);
@@ -52,13 +55,13 @@ export function buildDecor(scene: THREE.Scene, plainY: number) {
     return { m: matrix(p.x, plainY, p.z, p.r[2] * 6.28, t * 0.85, t, t * 0.85), c: lerpColor(D.treeCrown, D.treeCrown2, p.r[1]) };
   })));
 
-  const rocks = scatter(D.seed + 1, D.rocks, [88, 300]);
+  const rocks = scatter(D.seed + 1, D.rocks, [88, 300], inMesa);
   scene.add(instanced(new THREE.IcosahedronGeometry(1, 0), createMaterial(0xffffff), rocks.map((p) => {
     const s = 0.8 + p.r[0] * 2.6;
     return { m: matrix(p.x, plainY + s * 0.25, p.z, p.r[2] * 6.28, s, s * 0.65, s * 0.85), c: lerpColor(D.rock, 0xa6a3a8, p.r[1] * 0.6) };
   })));
 
-  const hills = scatter(D.seed + 2, D.hills, D.hillRange);
+  const hills = scatter(D.seed + 2, D.hills, D.hillRange, inMesa);
   scene.add(instanced(new THREE.IcosahedronGeometry(1, 1), createMaterial(0xffffff), hills.map((p) => {
     const s = 40 + p.r[0] * 80;
     return { m: matrix(p.x, plainY - s * 0.05, p.z, p.r[2] * 6.28, s * 1.2, s * 0.32, s), c: lerpColor(D.hill, D.hill2, p.r[1]) };
