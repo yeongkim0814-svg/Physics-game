@@ -1,6 +1,6 @@
 # CLAUDE.md — 싱글 오픈월드 과학 탐험 게임
 
-설계 원문 `GAME_DESIGN.md` (충돌 시 우선) · 모델 운용 `docs/WORKFLOW.md`
+설계 원문 `GAME_DESIGN.md` (충돌 시 우선) · 그래픽 구현 지침 `OPEN_WORLD_ART_DIRECTION.md` (§0 정합 결정이 본문보다 우선, 아트 Phase 1~8) · 모델 운용 `docs/WORKFLOW.md`
 사용자(한국어)는 원리 중심·간결·핵심 빠짐없는 설명을 선호. 마지막에 튜닝 수치/한계를 정리한다.
 
 ## 명령
@@ -16,6 +16,7 @@
 - 렌더링: 스타일 프리셋 `VISUAL.style` ('lowpoly' 기본 = BotW풍 밝은 로우폴리·플랫 셰이딩·네이티브 해상도 / 'ps1' = 롤백용 PS1 파이프라인). 재질은 반드시 `render/materials.ts` 의 `createMaterial`(= `lambert` alias) **재질 팩토리 경유**(일반 Three 재질 직접 생성 금지: 안개·스타일 분기·탈색 파라미터가 빠짐). 시간대 프리셋 `VISUAL.lowpoly.timeOfDay`('dusk' 기본 = 영원한 황혼 블록 룩 / 'day' = 낮, URL `?tod=day`; 수치는 `config/lowpolyPresets.ts`, 지형은 `world/blockTerrain.ts` 모자이크 빌더, 원경은 `render/backdrop.ts` 파노라마 백드롭 `src/assets/backdrop_dusk.png`). 아이템/NPC/기준점은 발광색으로 식별성 확보, 이상 지역은 탈색(채도)으로 표현
 - 3인칭 어깨 너머 시점: 카메라=`player/ThirdPersonCamera`, 캐릭터는 `player/CharacterModel` 인터페이스(교체 지점 `createPlayerCharacter()`: 기본 `voxelCharacter`(복셀 카빙), `?char=legacy` 폴백 `protagonistCharacter`, 최후 `placeholderCharacter`). 발사/던지기는 총구(손)→화면 중앙 조준점 방향(`weapons/aim.ts`), 반동은 실제 발사 방향의 반대
 - **생성 에셋 허용**: `scripts/make_backdrop.py` 처럼 입력 없이 재현 가능한 생성 스크립트로 만든 에셋(`src/assets/backdrop_dusk.png`)은 '외부 에셋 없음' 위반이 아니다 (생성법 `docs/BACKDROP.md`)
+- **아트 작업 규칙** (`OPEN_WORLD_ART_DIRECTION.md` §26): 렌더 엔진(WebGL2)·`package.json`·물리 엔진·카메라 구조·저장 시스템을 임의로 바꾸지 않는다(필요하면 먼저 분석·보고). 기존 코드를 읽고 최소 변경, 재질은 `createMaterial` 재사용, 새 재질 남발 금지(재질·메시 재사용, InstancedMesh)
 - 범위 제외: 서버·멀티플레이, 전투 필수화, 인벤토리·스킬 트리, 사운드
 
 ## 작업 규칙

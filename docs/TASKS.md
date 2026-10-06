@@ -38,6 +38,10 @@
 | M1h | 주인공 재제작(일러스트 기준): 날씬한 7.4등신 로프트 로우폴리(≈1,900 tri)·정점 AO·천 텍스처·림 라이트, 얼굴 텍스처(일러스트 크롭, 정면 투영), 태블릿형 휴대 장치, 발 접지 보정, 재질 selfGlow/rim 옵션 | done |
 | M1i | 황혼 블록 비주얼+원경 백드롭: `timeOfDay` 프리셋(dusk 기본/day 보관), 블록 지형 모자이크 빌더·계단식 단차·메사·협곡 돌출, 생성 백드롭 파노라마(`scripts/make_backdrop.py`), 탑 빛기둥·청록 창문·떠 있는 파편·높이 안개 면, 캐릭터 조명 재조정 | done |
 | M1j | 주인공 복셀 카빙: 사용자 도면(정면·측면·후면)을 `scripts/carve_character.py` 로 부위별 슈퍼엘립스 카빙·투영 색칠·팔레트 양자화 → `protagonist_voxels.json`, 런타임 그리디 메싱(≈5,800 tri, 19 메시)·복셀 AO·부위 그룹(머리/몸통/골반/팔/다리/부츠/앞뒤 자락/천 자락/발광 장치) 절차 애니메이션. 기존 M1h 모델은 `?char=legacy` 폴백으로 유지 | done |
+| A1 | 아트 Phase 1 Rendering Prototype (`OPEN_WORLD_ART_DIRECTION.md` §24) — M1g·M1i 로 충족 | done |
+| A2 | 아트 Phase 2 Terrain: 계단형 하이트필드 지형(절벽·계곡), 셰이더 높이 안개, 3D 원경 산, 게임플레이 구조 유지 | todo |
+| A3 | 아트 Phase 3 World Streaming (C5: 맵이 3×3 청크를 넘을 때) | todo |
+| A4~A8 | 아트 Phase 4 Environment · 5 Landmark · 6 Character 보강 · 7 Interaction · 8 Final Art Pass (C10: M2 통과 후 4 착수) | todo |
 | M1(b) | todo | todo |
 | M1(c) | 증거 카드(onLanded 기록 → 카드) | todo |
 | M1(d) | todo | todo |
