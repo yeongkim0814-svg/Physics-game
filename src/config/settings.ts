@@ -5,7 +5,7 @@ export const VISUAL = {
   /** 내부 렌더 해상도(세로). 가로는 화면 비율로 결정 (270 → 16:9 에서 480×270). 낮출수록 거칠고 빠르다 */
   internalHeight: 270,
   minInternalHeight: 160,
-  camera: { near: 0.1, far: 160 },
+  camera: { near: 0.1, far: 500 }, // far 는 안개 너머 원경 랜드마크·달이 보이도록 길게
   /** 정점 스냅: 정점을 내부 픽셀 격자(snapPixels 배수)에 맞춰 PS1 특유의 떨림 */
   vertexSnap: true,
   snapPixels: 1,
@@ -17,18 +17,25 @@ export const VISUAL = {
   /** 후처리 5단계 (PERF.postprocess 로 전체 on/off). 강도는 여기서 튜닝 */
   post: {
     edge: 0.62, edgeLo: 0.09, edgeHi: 0.22, // 깊이 윤곽선: 어두워지는 정도 / smoothstep 임계값
-    saturation: 0.75,                       // 채도 유지 비율 (낮을수록 탁함)
-    contrast: 1.14,
-    tint: [1.0, 0.985, 0.8] as [number, number, number], // 올리브-노랑 색조
-    black: 0.2,                           // 검정 최소값 (완전한 검정 방지)
+    saturation: 0.9,                        // 채도 유지 비율 (낮을수록 탁함). 색이 정보이므로 높게
+    contrast: 1.08,
+    tint: [1.0, 0.96, 0.9] as [number, number, number], // 따뜻한 석양 색조
+    black: 0.14,                          // 검정 최소값 (완전한 검정 방지)
     vignette: 0.4,
     grain: 0.01,                            // 프레임마다 변하는 그레인
     grainSpeed: 12,
     scanline: 0.05,
     levels: 16,                             // 채널당 양자화 단계 (4x4 바이어 디더)
   },
-  fog: { color: 0x20241a, near: 8, far: 70 },
-  lighting: { ambient: 0xd0d4c0, sun: 0xfffef8, sunDir: [0.4, 0.8, 0.3] as [number, number, number] },
+  /** 보라~남색 석양 하늘 = 안개색 = 배경색. 멀리 갈수록 이 색에 잠긴다 */
+  fog: { color: 0x5a4b7e, near: 30, far: 130 },
+  /** 차가운 보랏빛 환경광(그늘) 대 따뜻한 호박빛 태양(양지) 대비. 태양은 낮게 깔려 벽면마다 명암이 갈린다 */
+  lighting: {
+    ambient: 0x8f9be0, ambientIntensity: 1.15,
+    sun: 0xffc27a, sunIntensity: 1.3, sunDir: [0.55, 0.32, 0.77] as [number, number, number], sunDistance: 40,
+  },
+  /** 던지는 돌 색: 무거운 쪽이 더 어둡다 */
+  throwable: { light: 0xb9a58a, heavy: 0x4a3b36 },
 } as const;
 
 export const PERF = {
@@ -39,6 +46,12 @@ export const PERF = {
   autoResolution: true,
   targetFps: 45,
   autoResolutionStep: 0.8,
+} as const;
+
+/** 개발용 디버그 플래그 */
+export const DEBUG = {
+  /** 돌 착지 시 콘솔에 낙하 시간/높이를 찍는다 (증거 카드 UI 전 임시 확인용) */
+  logThrowables: true,
 } as const;
 
 export const UI = {
@@ -55,7 +68,8 @@ export const TOUCH = {
   buttons: {
     fire:     { right: 28,  bottom: 40,  size: 104, label: 'FIRE' },
     jump:     { right: 150, bottom: 120, size: 84,  label: 'JUMP' },
-    swap:     { right: 250, bottom: 40,  size: 64,  label: 'AMMO' }, // 재료 전환
+    throw:    { right: 250, bottom: 40,  size: 64,  label: 'THROW' },  // 가벼운 돌 던지기
+    throw2:   { right: 330, bottom: 40,  size: 64,  label: 'THROW2' }, // 무거운 돌 던지기
     weapon:   { right: 250, bottom: 120, size: 64,  label: 'WPN' },  // 장착한 무기 전환
   },
   buttonOpacity: 0.45,

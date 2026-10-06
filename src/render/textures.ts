@@ -44,7 +44,7 @@ function hexToRgb(h: number) {
 export function floorTexture() {
   return mkTexture('floor', (g, r) => {
     const n = VISUAL.textureSize;
-    const mid = hexToRgb(COL.floorTile);
+    const mid = hexToRgb(COL.sand);
     g.fillStyle = `rgb(${mid.r},${mid.g},${mid.b})`;
     g.fillRect(0, 0, n, n);
     // 그레인: 어두운 점
@@ -68,15 +68,15 @@ export function wallTexture(tunnelable = false) {
   const key = tunnelable ? 'wall_tunnel' : 'wall';
   return mkTexture(key, (g, r) => {
     const n = VISUAL.textureSize;
-    const base = hexToRgb(COL.oliveMid);
+    const base = hexToRgb(COL.stone);
     g.fillStyle = `rgb(${base.r},${base.g},${base.b})`;
     g.fillRect(0, 0, n, n);
     // 패널 이음: 수직 선
-    g.strokeStyle = `rgb(${hexToRgb(COL.oliveDark).r},${hexToRgb(COL.oliveDark).g},${hexToRgb(COL.oliveDark).b})`;
+    g.strokeStyle = `rgb(${hexToRgb(COL.shade).r},${hexToRgb(COL.shade).g},${hexToRgb(COL.shade).b})`;
     g.lineWidth = 1;
     for (let i = n * 0.4; i < n; i += n * 0.5) g.strokeRect(i - 0.5, 0, 1, n);
     // 리벳: 밝은 점
-    const rivet = hexToRgb(COL.aluminum);
+    const rivet = hexToRgb(COL.copper);
     g.fillStyle = `rgb(${rivet.r},${rivet.g},${rivet.b})`;
     for (let y = n * 0.25; y < n; y += n * 0.3) {
       for (let x = n * 0.2; x < n; x += n * 0.4) {
@@ -100,7 +100,7 @@ export function wallTexture(tunnelable = false) {
 export function ceilingTexture() {
   return mkTexture('ceiling', (g, _r) => {
     const n = VISUAL.textureSize;
-    const base = hexToRgb(COL.oliveDark);
+    const base = hexToRgb(COL.shade);
     g.fillStyle = `rgb(${base.r},${base.g},${base.b})`;
     g.fillRect(0, 0, n, n);
     // 60cm 격자(내부 해상도 비율로)
@@ -124,11 +124,11 @@ export function ceilingTexture() {
 export function metalTexture() {
   return mkTexture('metal', (g, r) => {
     const n = VISUAL.textureSize;
-    const base = hexToRgb(COL.steelDark);
+    const base = hexToRgb(COL.copperDark);
     g.fillStyle = `rgb(${base.r},${base.g},${base.b})`;
     g.fillRect(0, 0, n, n);
     // 스크래치: 밝은 선
-    g.strokeStyle = `rgb(${hexToRgb(COL.aluminum).r},${hexToRgb(COL.aluminum).g},${hexToRgb(COL.aluminum).b})`;
+    g.strokeStyle = `rgb(${hexToRgb(COL.copper).r},${hexToRgb(COL.copper).g},${hexToRgb(COL.copper).b})`;
     g.lineWidth = 1;
     for (let i = 0; i < n; i += Math.max(3, Math.floor(r() * 8))) {
       g.beginPath();
@@ -142,7 +142,7 @@ export function metalTexture() {
 export function waterTexture() {
   return mkTexture('water', (g, r) => {
     const n = VISUAL.textureSize;
-    const base = hexToRgb(COL.oliveDark);
+    const base = hexToRgb(COL.shade);
     g.fillStyle = `rgb(${base.r},${base.g},${base.b})`;
     g.fillRect(0, 0, n, n);
     // 잔물결: 청록 가로줄 (전도체 = cyan)

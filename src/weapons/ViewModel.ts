@@ -9,14 +9,14 @@ export class ViewModel {
   private tip: THREE.MeshLambertMaterial;
 
   constructor(camera: THREE.Camera) {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.5), lambert(COL.steelDark));
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.45, 6), lambert(COL.aluminum));
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.5), lambert(COL.copperDark));
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.45, 6), lambert(COL.copper));
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.02, -0.4);
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.12), lambert(COL.oliveDark));
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.12), lambert(COL.shade));
     grip.position.set(0, -0.15, 0.1);
     // 총구 끝 발광부: 코일 충전량에 따라 밝아진다 (기능색 amber = 에너지)
-    this.tip = lambert(COL.oliveDark, { emissive: 0x000000, fog: false });
+    this.tip = lambert(COL.shade, { emissive: 0x000000, fog: false });
     const tipMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 0), this.tip);
     tipMesh.position.set(0, 0.02, -0.66);
     this.group.add(body, barrel, grip, tipMesh);

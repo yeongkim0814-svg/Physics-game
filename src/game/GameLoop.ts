@@ -29,9 +29,9 @@ export async function startGame(root: HTMLElement) {
   scene.background = new THREE.Color(VISUAL.fog.color);
   scene.fog = new THREE.Fog(VISUAL.fog.color, VISUAL.fog.near, VISUAL.fog.far);
   const L = VISUAL.lighting;
-  scene.add(new THREE.HemisphereLight(L.ambient, 0, 0.7));
-  const sun = new THREE.DirectionalLight(L.sun, 0.8);
-  sun.position.set(...L.sunDir).multiplyScalar(40);
+  scene.add(new THREE.HemisphereLight(L.ambient, 0, L.ambientIntensity));
+  const sun = new THREE.DirectionalLight(L.sun, L.sunIntensity);
+  sun.position.set(...L.sunDir).multiplyScalar(L.sunDistance);
   scene.add(sun);
 
   const camera = new THREE.PerspectiveCamera(VISUAL.fov, 16 / 9, VISUAL.camera.near, VISUAL.camera.far);

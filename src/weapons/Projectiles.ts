@@ -36,7 +36,7 @@ export class Projectiles {
   ) {}
 
   spawn(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, mass: number, color: number) {
-    const mesh = new THREE.Mesh(this.geo, lambert(color, { emissive: COL.oliveDark }));
+    const mesh = new THREE.Mesh(this.geo, lambert(color, { emissive: COL.shade }));
     mesh.scale.setScalar(0.07 * Math.cbrt(mass)); // 질량이 크면 굵게
     mesh.position.copy(origin);
     this.scene.add(mesh);

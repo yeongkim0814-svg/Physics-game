@@ -7,6 +7,20 @@ import {
 } from './mapGen';
 
 describe('mapGen', () => {
+  describe('stairBlocks baseY/floorY', () => {
+    it('baseY 로 이어지는 계단의 윗면 높이가 오프셋된다', () => {
+      const b = stairBlocks({ start: [0, 0], dir: '+x', steps: 2, width: 2, stepH: 0.5, stepD: 1, baseY: 8 });
+      expect(b[0].pos[1] + b[0].size[1] / 2).toBeCloseTo(8.5);
+      expect(b[1].pos[1] + b[1].size[1] / 2).toBeCloseTo(9);
+      expect(b[0].pos[1] - b[0].size[1] / 2).toBeCloseTo(0); // 바닥 0 에서 채움
+    });
+    it('floorY 가 있으면 그 높이부터 채운다 (협곡 바닥)', () => {
+      const b = stairBlocks({ start: [0, 0], dir: '+x', steps: 3, width: 2, stepH: 0.4, stepD: 1, baseY: -14, floorY: -14 });
+      expect(b[0].pos[1] - b[0].size[1] / 2).toBeCloseTo(-14);
+      expect(b[2].pos[1] + b[2].size[1] / 2).toBeCloseTo(-12.8);
+    });
+  });
+
   describe('stairBlocks', () => {
     it('기본 계단: steps=4, stepH=0.5, stepD=1, dir="-z", start=[0,10], width=2', () => {
       const boxes = stairBlocks({

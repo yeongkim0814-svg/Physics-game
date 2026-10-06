@@ -48,22 +48,22 @@ export function buildMobModel(def: MobDef): MobModel {
   if (def.id === 'metal') {
     part(new THREE.BoxGeometry(0.7, 0.85, 0.45), def.color, 0, 1.0, 0, dim(CUES.conductor, 0.22));
     part(new THREE.BoxGeometry(0.38, 0.32, 0.34), def.color, 0, 1.58, 0, dim(CUES.conductor, 0.22));
-    for (const sx of [-1, 1]) part(new THREE.BoxGeometry(0.22, 0.6, 0.25), COL.steelDark, sx * 0.18, 0.3, 0);
+    for (const sx of [-1, 1]) part(new THREE.BoxGeometry(0.22, 0.6, 0.25), COL.copperDark, sx * 0.18, 0.3, 0);
     part(new THREE.CylinderGeometry(0.03, 0.03, 0.4, 4), CUES.conductor, 0, 1.95, 0, CUES.conductor);
     band(new THREE.BoxGeometry(0.76, 0.1, 0.51), 1.2);
     eyes(1.6, -0.18, 0.1);
   } else if (def.id === 'insulator') {
     part(new THREE.CylinderGeometry(0.5, 0.55, 0.9, 6), def.color, 0, 0.5, 0);
-    part(new THREE.CylinderGeometry(0.56, 0.56, 0.12, 6), COL.oliveMid, 0, 0.3, 0);
-    part(new THREE.CylinderGeometry(0.56, 0.56, 0.12, 6), COL.oliveMid, 0, 0.75, 0);
+    part(new THREE.CylinderGeometry(0.56, 0.56, 0.12, 6), COL.stone, 0, 0.3, 0);
+    part(new THREE.CylinderGeometry(0.56, 0.56, 0.12, 6), COL.stone, 0, 0.75, 0);
     part(new THREE.IcosahedronGeometry(0.3, 0), def.color, 0, 1.25, 0);
     band(new THREE.CylinderGeometry(0.58, 0.58, 0.1, 6), 0.52);
     eyes(1.28, -0.26, 0.12);
   } else {
     part(new THREE.BoxGeometry(0.6, 0.75, 0.4), def.color, 0, 0.95, 0);
-    part(new THREE.IcosahedronGeometry(0.27, 0), COL.oliveDark, 0, 1.5, 0);
+    part(new THREE.IcosahedronGeometry(0.27, 0), COL.shade, 0, 1.5, 0);
     for (const sx of [-1, 1]) {
-      part(new THREE.BoxGeometry(0.22, 0.58, 0.25), COL.oliveDark, sx * 0.16, 0.29, 0);
+      part(new THREE.BoxGeometry(0.22, 0.58, 0.25), COL.shade, sx * 0.16, 0.29, 0);
       part(new THREE.BoxGeometry(0.15, 0.6, 0.15), def.color, sx * 0.42, 0.95, 0);
     }
     band(new THREE.BoxGeometry(0.66, 0.1, 0.46), 1.15);

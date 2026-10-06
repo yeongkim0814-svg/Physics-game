@@ -39,6 +39,9 @@ class ConductorNode implements Conductor {
 
 /** 맵 데이터(data/map.ts)로 지형·충돌·전도체를 만든다 */
 export class GameWorld {
+  /** 맵 밖 평원의 윗면 높이와 한 변 길이 (시각 전용) */
+  private static readonly PLAIN_Y = -0.4;
+  private static readonly PLAIN_SIZE = 700; // 중심에서 가장자리까지
   readonly conductors: Conductor[] = [];
   readonly spawn = new THREE.Vector3(...MAP.spawn);
   readonly mobSpawns = MAP.mobSpawns;
@@ -47,6 +50,7 @@ export class GameWorld {
 
   constructor(private scene: THREE.Scene, private physics: RAPIER.World) {
     this.buildGround();
+    this.buildSky();
     this.buildBlocks();
     this.buildStairs();
     this.buildWater();
@@ -61,8 +65,9 @@ export class GameWorld {
     for (const f of this.flashers) f.update(dt);
   }
 
-  private box(pos: [number, number, number], size: [number, number, number], mat: THREE.Material, collide = true) {
+  private box(pos: [number, number, number], size: [number, number, number], mat: THREE.Material, collide = true, visual = true) {
     if (collide) addStaticBox(this.physics, pos, size);
+    if (!visual) return null;
     const m = new THREE.Mesh(createBoxGeometryWithUV(...size), mat);
     m.position.set(...pos);
     this.scene.add(m);
@@ -72,13 +77,34 @@ export class GameWorld {
   private buildGround() {
     const S = MAP.size, H = MAP.wallHeight;
     const floorMat = lambert(0xffffff, { map: floorTexture() });
-    this.box([0, -0.5, 0], [S + 8, 1, S + 8], floorMat);
-    const wallMat = lambert(0xffffff, { map: wallTexture(false) });
+    for (const g of MAP.ground) this.box(g.pos, g.size, floorMat);
+    // 맵 밖 평원: 보이기만 한다 (안개가 지평선을 지운다). 협곡을 덮지 않게 맵 바깥 띠 4개로 깔고, 지면보다 살짝 낮춘다
+    const e = S / 2 + MAP.groundMargin, P = GameWorld.PLAIN_SIZE, T = MAP.groundThickness, py = GameWorld.PLAIN_Y - T / 2;
+    const strip = (cx: number, cz: number, sx: number, sz: number) => this.box([cx, py, cz], [sx, T, sz], floorMat, false);
+    strip(0, -(e + P) / 2, P * 2, P - e); strip(0, (e + P) / 2, P * 2, P - e);
+    strip(-(e + P) / 2, 0, P - e, e * 2); strip((e + P) / 2, 0, P - e, e * 2);
+    // 외곽 충돌 벽 (렌더 안 함: 원경 랜드마크가 가려지지 않게)
     const hs = S / 2 + 0.5;
-    this.box([0, H / 2, -hs], [S + 2, H, 1], wallMat);
-    this.box([0, H / 2, hs], [S + 2, H, 1], wallMat);
-    this.box([-hs, H / 2, 0], [1, H, S], wallMat);
-    this.box([hs, H / 2, 0], [1, H, S], wallMat);
+    const wall = lambert(0xffffff);
+    this.box([0, H / 2, -hs], [S + 2, H, 1], wall, true, false);
+    this.box([0, H / 2, hs], [S + 2, H, 1], wall, true, false);
+    this.box([-hs, H / 2, 0], [1, H, S], wall, true, false);
+    this.box([hs, H / 2, 0], [1, H, S], wall, true, false);
+  }
+
+  /** 안개 너머 랜드마크 실루엣(밑동 탈색) + 달. 안개를 무시하고 평평한 색(발광만)으로 그린다 */
+  private buildSky() {
+    const flat = (color: number) => lambert(0x000000, { emissive: color, fog: false });
+    for (const l of MAP.landmarks) {
+      this.box(l.pos, l.size, flat(l.color), false);
+      if (l.band) {
+        const bs: [number, number, number] = [l.size[0] + 0.6, l.band.height, l.size[2] + 0.6];
+        this.box([l.pos[0], l.pos[1] - l.size[1] / 2 + l.band.height / 2, l.pos[2]], bs, flat(l.band.color), false);
+      }
+    }
+    const moon = new THREE.Mesh(new THREE.IcosahedronGeometry(MAP.moon.radius, 1), flat(MAP.moon.color));
+    moon.position.set(...MAP.moon.pos);
+    this.scene.add(moon);
   }
 
   /** 종류별 재질. 금속은 구조물마다 따로 만들어 개별로 번쩍이게 한다 */

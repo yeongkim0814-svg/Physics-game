@@ -12,25 +12,30 @@ export interface StairDef {
   width: number;
   stepH: number;
   stepD: number;
+  /** i 번째 계단 윗면 높이 = baseY + (i+1)·stepH (기본 0). 이어지는 계단/협곡 바닥에서 시작할 때 쓴다 */
+  baseY?: number;
+  /** 계단 속을 채우는 아래쪽 높이 (기본 0). 협곡 바닥에서 올라오는 계단은 바닥 높이로 지정 */
+  floorY?: number;
 }
 
 export interface BoxPart { pos: Vec3; size: Vec3 }
 
 /**
  * 계단 → 속이 찬 박스 목록. i 번째 계단은 바닥(y=0)에서 (i+1)·stepH 높이까지 채워
- * 틈이 없다. 방향은 dir 로 정해지며 폭은 직교 축.
+ * 틈이 없다 (baseY/floorY 로 시작 높이·바닥 높이를 바꿀 수 있다). 방향은 dir 로 정해지며 폭은 직교 축.
  */
 export function stairBlocks(d: StairDef): BoxPart[] {
   const out: BoxPart[] = [];
   const sign = d.dir.startsWith('+') ? 1 : -1;
   const alongX = d.dir.endsWith('x');
   for (let i = 0; i < d.steps; i++) {
-    const h = (i + 1) * d.stepH;
+    const floor = d.floorY ?? 0;
+    const h = (d.baseY ?? 0) + (i + 1) * d.stepH - floor;
     const along = (alongX ? d.start[0] : d.start[1]) + sign * i * d.stepD;
     const across = alongX ? d.start[1] : d.start[0];
     out.push(alongX
-      ? { pos: [along, h / 2, across], size: [d.stepD, h, d.width] }
-      : { pos: [across, h / 2, along], size: [d.width, h, d.stepD] });
+      ? { pos: [along, floor + h / 2, across], size: [d.stepD, h, d.width] }
+      : { pos: [across, floor + h / 2, along], size: [d.width, h, d.stepD] });
   }
   return out;
 }
