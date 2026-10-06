@@ -10,7 +10,7 @@ import type { CharacterState } from './CharacterModel';
 export interface Pose {
   thighL: number; thighR: number; kneeL: number; kneeR: number;
   armL: number; armLz: number; elbowL: number;
-  armR: number; elbowR: number;
+  armR: number; armRz: number; elbowR: number;
   lean: number; headPitch: number; bob: number;
   /** 가슴 부피 비율 (1 = 기본). 숨쉬기 */
   chest: number;
@@ -20,7 +20,7 @@ type Cfg = typeof VISUAL.character;
 export type PoseInput = Pick<CharacterState, 'speed' | 'grounded' | 'aiming' | 'vy' | 'aimPitch'>;
 
 export const REST_POSE: Pose = {
-  thighL: 0, thighR: 0, kneeL: 0, kneeR: 0, armL: 0, armLz: 0, elbowL: 0, armR: 0, elbowR: 0,
+  thighL: 0, thighR: 0, kneeL: 0, kneeR: 0, armL: 0, armLz: 0, elbowL: 0, armR: 0, armRz: 0, elbowR: 0,
   lean: 0, headPitch: 0, bob: 0, chest: 1,
 };
 
@@ -56,6 +56,7 @@ export function targetPose(st: PoseInput, phase: number, idleT: number, C: Cfg =
     p.kneeL = kneeRest + C.kneeWalk * amp * Math.max(0, cw);
     p.kneeR = kneeRest + C.kneeWalk * amp * Math.max(0, -cw);
     p.armL = C.leftArmRest - sw * C.armSwing + breath * 0.03;
+    p.armLz = -C.armRestOut; // 허리 파우치를 비켜 가게 살짝 벌린 팔 (왼쪽은 -z 가 바깥)
     p.elbowL = C.leftElbowRest + Math.max(0, p.armL - C.leftArmRest) * C.leftElbowSwing;
     p.bob = Math.abs(cw) * C.bob * amp;
   } else {
@@ -71,6 +72,7 @@ export function targetPose(st: PoseInput, phase: number, idleT: number, C: Cfg =
     : C.restArm + (st.grounded ? sw * C.armSwing * 0.3 : 0);
   p.elbowR = st.aiming ? C.weaponElbowAim : C.weaponElbowRest;
   p.armR = total - p.elbowR;
+  p.armRz = st.aiming ? 0 : C.armRestOut * 0.6;
 
   // 고개: 상체 숙임을 대부분 상쇄해 정면을 보고, 조준 시 카메라 pitch 를 일부 따라간다
   p.lean = lean;
@@ -81,4 +83,14 @@ export function targetPose(st: PoseInput, phase: number, idleT: number, C: Cfg =
 /** 현재 자세를 목표로 지수 보간 (k = followFactor) */
 export function blendPose(cur: Pose, target: Pose, k: number): void {
   for (const key of Object.keys(cur) as (keyof Pose)[]) cur[key] += (target[key] - cur[key]) * k;
+}
+
+/**
+ * 발 접지: 다리가 굽거나 스윙해 발이 엉덩이 아래로 짧아지면 몸 전체를 그만큼 내려, 가장 낮은 발이 땅에 닿게 한다.
+ * 다리 하나의 수직 길이 = thighLen·cos(허벅지) + shinLen·cos(허벅지 - 무릎) (무릎은 정강이를 뒤로 접으므로 부호 -).
+ * 반환 = body y 오프셋 (≤ 0). 걷기 중 스윙 정점에서 발이 뜨거나 땅에 파묻히지 않게 한다.
+ */
+export function footDrop(p: Pose, thighLen: number, shinLen: number): number {
+  const ext = (th: number, kn: number) => thighLen * Math.cos(th) + shinLen * Math.cos(th - kn);
+  return Math.max(ext(p.thighL, p.kneeL), ext(p.thighR, p.kneeR)) - (thighLen + shinLen);
 }
