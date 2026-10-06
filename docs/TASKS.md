@@ -32,6 +32,7 @@
 | M0 | 폐기 코드 제거(계획: `docs/M0_CLEANUP.md`) | done |
 | M1 | 수직 슬라이스: 말라붙은 해안 도시 일부 + 반동 도구 + 쌍둥이 낙하 실험 + 증거 카드·제출 UI + 저장 지점/HP/스태미너 | doing |
 | M1(a) | 해안 도시 지형(탑·협곡·폐허·원경 랜드마크) + 석양 팔레트 + 돌 던지기 실험 환경(`world/Throwables.ts`, `onLanded` 이벤트) | done |
+| M1e | 3인칭 전환: 어깨 너머 카메라(충돌), 총구→조준점 발사, 교체 가능한 CharacterModel(placeholder), 참고 이미지 색감·질감(하늘 돔·벽돌/구리/모래 텍스처·조명) | done |
 | M1(b) | todo | todo |
 | M1(c) | 증거 카드(onLanded 기록 → 카드) | todo |
 | M1(d) | todo | todo |

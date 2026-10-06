@@ -13,6 +13,7 @@
 - 물리: Rapier(`@dimforge/rapier3d-compat`, `await RAPIER.init()` 필요)
 - 입력은 `core/input.ts` 의 통합 API(moveX/Y, lookDX/DY, fire, jumpPressed…)만 사용. 키/터치 직접 참조 금지
 - 렌더링은 `render/` 의 PS1 재질(`createPS1Material`)만 사용 (일반 Three 재질 금지: 안개·스냅·양자화가 빠짐). 아이템/NPC/기준점은 발광색으로 식별성 확보
+- 3인칭 어깨 너머 시점: 카메라=`player/ThirdPersonCamera`, 캐릭터는 `player/CharacterModel` 인터페이스(교체 지점 `createPlayerCharacter()`, 현재 `placeholderCharacter`). 발사/던지기는 총구(손)→화면 중앙 조준점 방향(`weapons/aim.ts`), 반동은 실제 발사 방향의 반대
 - 범위 제외: 서버·멀티플레이, 전투 필수화, 인벤토리·스킬 트리, 사운드
 
 ## 작업 규칙
