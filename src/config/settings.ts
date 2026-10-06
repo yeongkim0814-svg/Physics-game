@@ -1,8 +1,9 @@
 // 비주얼·입력·성능 설정. 게임플레이 수치는 tuning.ts, 이쪽은 "보이고 조작되는 방식"만 다룬다.
+import { LP_DAY, LP_DUSK } from './lowpolyPresets';
 
 export const VISUAL = {
   /**
-   * 비주얼 프리셋 (2026-10-06 변경). 'lowpoly' = BotW 풍 밝고 선명한 색감의 로우폴리(기본, 네이티브 해상도·플랫 셰이딩·낮 하늘),
+   * 비주얼 프리셋 (2026-10-06 변경). 'lowpoly' = 로우폴리(기본, 네이티브 해상도·플랫 셰이딩. 시간대는 lowpoly.timeOfDay: 'dusk' 황혼 블록 룩 기본 / 'day' BotW풍 낮),
    * 'ps1' = 이전 PS1풍(저해상도 타깃·정점 스냅·디더·석양, 롤백/비교용). 개발 중에는 URL `?style=ps1|lowpoly` 로 덮어쓸 수 있다.
    * 아래 `lowpoly` 블록은 'lowpoly' 전용, 그 외 fog/lighting/sky/post/internalHeight/vertexSnap/texture* 는 'ps1' 전용 수치다.
    */
@@ -50,29 +51,44 @@ export const VISUAL = {
   },
   /** 'lowpoly' 프리셋 전용 (BotW 풍 밝은 낮 + 대기 원근). 색은 0xRRGGBB, 길이는 m */
   lowpoly: {
+    /** 시간대 프리셋 (M1i). 기본 'dusk' = 영원한 황혼(목표 이미지), 'day' = 이전 BotW풍 낮(보관). URL `?tod=day|dusk` 로 덮어쓸 수 있다 */
+    timeOfDay: 'dusk' as 'dusk' | 'day',
+    /** 시간대별 수치 (안개·조명·하늘·지형 팔레트·캐릭터 보정·블롭·장식·기능 on/off). 활성 값은 render/style.ts 의 LP */
+    presets: { day: LP_DAY, dusk: LP_DUSK },
+    /**
+     * 원경 백드롭(M1i): 가로로 이음새 없는 파노라마 PNG 를 카메라를 따라다니는 원통(안쪽 면)에 붙인다. 파일 하나를 같은 이름·크기로 바꾸면 교체된다
+     * (다른 크기/이름이면 아래 file·width·height 만 맞춘다). 생성: scripts/make_backdrop.py → docs/BACKDROP.md.
+     * 이미지 x 는 화면에서 왼→오 (안에서 바깥 볼 때), 방위 θ = atan2(dx, dz) 는 x = (1 - θ/2π)·width. 해·빛기둥 방위는 스크립트와 같은 값.
+     */
+    backdrop: {
+      file: 'backdrop_dusk.png', width: 2048, height: 512,
+      radius: 450,          // 원통 반지름 (카메라 far 500 안쪽, 지형이 앞을 가린다)
+      heightScale: 1,       // 원통 높이 = 둘레 × (height/width) × 이 값 (1 = 정사각 픽셀)
+      horizonV: 0.62,       // 이미지 위쪽에서 눈높이(지평선)까지의 비율 (원통 중심 보정)
+      brightness: 1,        // 밝기 곱 (0~)
+      sunAzimuthDeg: 143, beaconAzimuthDeg: 170, // 해 원반·성/빛기둥 방위 (θ = atan2(dx, dz), 도). 스크립트 상수와 일치
+      pixelated: true,      // 확대 시 nearest (픽셀 블록 느낌). false 면 선형
+    },
+    /** 블록 지형 생성기 (world/blockTerrain.ts): 면당 타일 한 변 길이(m)와 상한. 타일마다 색을 흔든다 */
+    terrain: {
+      seed: 23,
+      tile: { block: 3.2, ground: 6, far: 28, stair: 8, cliff: 9, ledge: 4, landmark: 20 },
+      maxTilesPerAxis: 40,
+    },
+    /** 근경 빛기둥(탑 위): 얇은 평면 2장 × 층 2겹, 안개 무시·가산 발광·느린 맥동 */
+    beam: { height: 440, coreWidth: 0.9, outerWidth: 3.4, pulseSpeed: 0.9, pulseAmp: 0.25, coreOpacity: 0.95, outerOpacity: 0.32, spin: 0.05 },
+    /** 떠 있는 파편 (시각 전용, 충돌 없음): 큐브 InstancedMesh */
+    debris: {
+      count: 30, seed: 31, ring: [90, 260] as [number, number], elev: [35, 170] as [number, number],
+      size: [1.2, 5] as [number, number], spin: 0.3, bobAmp: 1.4, bobSpeed: 0.22,
+      /** 큰 덩어리(드문 길쭉한 부유 바위) 개수와 크기 배율 */
+      big: 3, bigScale: 2,
+    },
+    /** 탑 창문 (청록 발광 CUES.conductor): 한 면에 놓는 열 수, 높이 간격, 창 크기 */
+    windows: { columns: 3, rowGap: 4.2, firstY: 5, size: [1.0, 2.4] as [number, number], glow: 1.0, proud: 0.1 },
     /** 자동 해상도 저하의 하한 (렌더 버퍼 세로 px). 기본 해상도는 innerHeight × min(devicePixelRatio, PERF.maxPixelRatio) */
     minHeight: 360,
-    /** 안개 = 배경 = 하늘 지평선 색. near~far 에서 청백색으로 서서히 사라진다 (카메라 far 500 안쪽) */
-    fog: { color: 0xcfe7f5, near: 40, far: 400 },
-    /** 따뜻한 태양광(Directional) + 하늘색/청회색 반사광(Hemisphere). 햇빛 면=크림, 그늘 면=청회색. 강도는 three 물리 단위(≈π 배) */
-    lighting: {
-      sky: 0x93bcff, ground: 0xa0b0e6, hemiIntensity: 2.3,
-      sun: 0xfff1d2, sunIntensity: 2.6, sunDir: [0.45, 0.7, 0.55] as [number, number, number], sunDistance: 40,
-    },
-    /** 낮 하늘 돔: 정점 색 그라디언트(천정 청색 → 중간 → 지평선 옅은 하늘색/크림) + 해 + 로우폴리 구름 */
-    sky: {
-      radius: 400, rings: 32, segments: 24,
-      zenith: 0x2f7fe4, mid: 0x74b8f4, horizon: 0xcfe7f5,
-      gradientPower: 0.75,   // 지평선→천정 분포 지수 (작을수록 옅은 띠가 두꺼움)
-      sun: { distance: 380, radius: 18, color: 0xfffbe6, haloColor: 0xffffff, haloScales: [1.7, 2.6, 3.8] as number[], haloOpacity: 0.18 }, // 후광: 반경 배수별 반투명 원을 겹쳐 단계적으로 흐려진다
-      clouds: {
-        count: 9, parts: [3, 5] as [number, number], distance: 300, size: [26, 48] as [number, number],
-        squash: 0.4, elevMin: 0.2, elevMax: 0.62, // 고도(rad)
-        color: 0xffffff, shade: 0x4a5878, drift: 0.004, // shade = 그늘 면이 너무 어두워지지 않게 더하는 자체 발광색
-                    // 구름 무리가 천천히 도는 속도 (rad/s)
-      },
-    },
-    /** 박스 지오메트리 정점색 (텍스처 대신): 낮은 주파수 명도 노이즈 + 밑동의 먼지색 그라디언트 */
+    /** 박스 지오메트리 정점색 (낮 프리셋·원경 박스용): 낮은 주파수 명도 노이즈 + 밑동의 먼지색 그라디언트 */
     tint: {
       segment: 8,          // 벽 한 면을 이 크기(m) 이하로 분할 (정점색 보간 해상도)
       groundSegment: 14,   // 지면 분할 크기(m)
@@ -84,29 +100,8 @@ export const VISUAL = {
     outline: { enabled: false, color: 0x2a3550, strength: 0.4, edgeLo: 0.09, edgeHi: 0.22 },
     /** 지역 탈색(색이 정보): 월드 xz 원형 지역 안의 모든 재질 채도를 낮춘다. [x, z, 반경 m, 강도 0~1]. 최대 4개. 지금은 비어 있음 */
     desat: { regions: [] as [number, number, number, number][], softness: 0.5, landmarkBase: 0.88 },
-    /** 지면 장식 (시각 전용, 충돌 없음): 맵 밖 평원의 나무·바위·언덕 + 맵 안 이끼 패치 + 협곡 바닥 청록 잔물 */
-    decor: {
-      seed: 5, trees: 150, rocks: 60, hills: 16, mossPatches: 70, puddles: 12,
-      treeRange: [92, 460] as [number, number], // 맵 중심 기준 체비셰프 거리
-      hillRange: [150, 470] as [number, number],
-      mossColor: 0x8bb36a, mossColor2: 0xa9bb62, puddleColor: 0x46a89a,
-      treeCrown: 0x6fa860, treeCrown2: 0x93b255, treeTrunk: 0x8a6244,
-      rock: 0xc9b9a2, hill: 0xd2b27c, hill2: 0xb7b08a,
-    },
-    /** 발밑 블롭 그림자 (3인칭 가독성) */
-    blob: { radius: 0.5, opacity: 0.32, color: 0x24324d, maxDrop: 40, minScale: 0.45, fadeHeight: 12 },
     /** 금속 구조물(전도체)의 청록 발광 비율 (CUES.conductor × 이 값). 밝은 낮에도 전도체가 읽히게 */
     conductorGlow: 0.3,
-    /**
-     * 주인공 렌더 보정 (M1h). 낮빛(햇빛 면 = 따뜻한 태양 + 푸른 반사광)에서 크림 셔츠가 흰색으로 날아가고 그늘은 회청색으로 죽는 문제를 다룬다.
-     * exposure = 정점색·텍스처 알베도 배율(날림 방지), selfGlow = 알베도 × 이 색을 더하는 따뜻한 보정광(그늘 면 색 유지, 알베도에 비례),
-     * rim = 하늘 앞 실루엣을 살리는 얇은 역광 (색 0xRRGGBB, strength 0..1, power 클수록 얇음).
-     */
-    character: {
-      exposure: 0.72,
-      selfGlow: [0.55, 0.44, 0.3] as [number, number, number],
-      rim: { color: 0xcfe6ff, strength: 0.34, power: 3.2 },
-    },
   },
   /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
   character: {

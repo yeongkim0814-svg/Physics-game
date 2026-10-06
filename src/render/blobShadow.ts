@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RAPIER } from '../core/physics';
-import { VISUAL } from '../config/settings';
+import { LP } from './style';
 
 /**
  * 발밑 블롭 그림자 (3인칭 가독성용, 'lowpoly'): 발 아래 지면으로 레이를 쏴 그 위에 반투명 원을 깐다.
@@ -11,7 +11,7 @@ export class BlobShadow {
   private mat: THREE.MeshBasicMaterial;
 
   constructor(scene: THREE.Scene, private world: RAPIER.World, private exclude: RAPIER.RigidBody) {
-    const B = VISUAL.lowpoly.blob;
+    const B = LP.blob;
     this.mat = new THREE.MeshBasicMaterial({ color: B.color, transparent: true, opacity: B.opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.mesh = new THREE.Mesh(new THREE.CircleGeometry(B.radius, 14).rotateX(-Math.PI / 2), this.mat);
     this.mesh.renderOrder = 1;
@@ -21,7 +21,7 @@ export class BlobShadow {
 
   /** feet = 발 위치 */
   update(feet: THREE.Vector3) {
-    const B = VISUAL.lowpoly.blob;
+    const B = LP.blob;
     const lift = 0.3;
     const ray = new RAPIER.Ray({ x: feet.x, y: feet.y + lift, z: feet.z }, { x: 0, y: -1, z: 0 });
     const hit = this.world.castRay(ray, B.maxDrop, true, undefined, undefined, undefined, this.exclude);

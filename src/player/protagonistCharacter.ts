@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createMaterial } from '../render/materials';
-import { isPS1 } from '../render/style';
+import { isPS1, LP } from '../render/style';
 import { VISUAL } from '../config/settings';
 import { JOINTS } from '../data/protagonist';
 import { followFactor } from './cameraMath';
@@ -11,7 +11,7 @@ import { advancePhase, blendPose, footDrop, REST_POSE, targetPose } from './prot
 import { fabricTexture, faceTexture } from './protagonistTextures';
 
 const V = VISUAL.character;
-const R = VISUAL.lowpoly.character;
+const R = LP.character;
 
 /** 렌더 재질 3종: 천(텍스처×정점색) / 단색 정점색 / 얼굴 텍스처. 로우폴리는 셰이더 보정(selfGlow·rim), ps1 은 약한 단색 emissive */
 function makeMaterials() {
