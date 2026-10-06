@@ -245,3 +245,26 @@ function mkSky(name: string, sunAzimuth: number, horizonBelow: number): THREE.Te
   cache.set(name, tex);
   return tex;
 }
+
+/**
+ * 작은 비정방형 픽셀 텍스처 (캐릭터 얼굴·옷 무늬용). 확대=nearest, 축소=linear(밉맵 없음): 안경 테 같은 1px 선이 밉맵에서 뭉개지지 않게.
+ * draw 의 put(x,y,w,h,색,알파) 로 픽셀 블록을 찍는다.
+ */
+export function pixelTexture(
+  name: string, w: number, h: number,
+  draw: (put: (x: number, y: number, w: number, h: number, hex: number, alpha?: number) => void) => void,
+): THREE.Texture {
+  const hit = cache.get(name);
+  if (hit) return hit;
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const g = canvas.getContext('2d')!;
+  draw((x, y, bw, bh, hex, a = 1) => px(g, x, y, bw, bh, rgba(hex, a)));
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  cache.set(name, tex);
+  return tex;
+}

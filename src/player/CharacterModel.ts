@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import { placeholderCharacter } from './placeholderCharacter';
+import { protagonistCharacter } from './protagonistCharacter';
 
 /** 캐릭터가 매 프레임 받는 상태. 모델은 이것만 보고 자세를 정한다 */
 export interface CharacterState {
@@ -34,7 +35,14 @@ export interface CharacterModel {
   setGlow?(v: number): void;
 }
 
-/** 교체 지점: 새 캐릭터 구현체가 생기면 여기서 그것을 반환하게 바꾼다 */
+/**
+ * 교체 지점: 현재 주인공 모델(protagonistCharacter, M1f). 생성에 실패하면(캔버스 없는 환경 등) placeholderCharacter 로 폴백.
+ */
 export function createPlayerCharacter(): CharacterModel {
-  return placeholderCharacter();
+  try {
+    return protagonistCharacter();
+  } catch (e) {
+    console.warn('protagonistCharacter 생성 실패, placeholder 로 대체', e);
+    return placeholderCharacter();
+  }
 }
