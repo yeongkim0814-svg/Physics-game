@@ -11,7 +11,7 @@ export const TERRAIN_FIELD: TerrainParams = {
   valley: { depthMin: 24, depthMax: 40, scale: 260, floorNoise: 4, floorNoiseScale: 70 },
   tier: { height: 9, sharp: 2.6, fadeIn: 8 }, // 선반 간격 9m = stepH 의 3배 (고원 0, 계곡 바닥 -27/-36 …)
   massif: { warpScale: 60, warpAmp: 14, sharpMin: 0.18, sharpMax: 0.5, topNoise: 1.5 },
-  mountain: { r0: 250, r1: 430, base: 30, amp: 70, scale: 150, octaves: 4, dip: { azimuthDeg: 170, halfWidthDeg: 38, min: 0.35 } },
+  mountain: { r0: 240, r1: 420, base: 45, amp: 95, scale: 170, octaves: 4, dip: { azimuthDeg: 170, halfWidthDeg: 38, min: 0.35 } },
   bluff: { slope: 1, edgeNoise: 2.5 },
   canyonMouth: { length: 30, slope: 0.5 },
   // 근거리 = 고해상도(셀 2m, 플레이 영역+고원 가장자리·절벽), 원거리 = 저해상도 링(셀 24m, 카메라 far 500 너머까지). nearHalf 는 farCell·nearCell 의 배수
@@ -21,8 +21,8 @@ export const TERRAIN_FIELD: TerrainParams = {
 /** 지형 메시: 타일(색 모자이크) 한 변 길이(m)와 면당 상한. 면 크기에 비례, 원점에서 멀수록 (r/r0)^grow 배로 키워 적응형으로 쪼갠다 */
 export const TERRAIN_MESH = {
   seed: 29,
-  tile: { top: 4, wall: 4, max: 48, r0: 90, grow: 3 },
-  maxTiles: 24,
+  tile: { top: 3.5, wall: 8, max: 48, r0: 100, grow: 3 },
+  maxTiles: 48,
   /** 높이별 윗면 팔레트: [이 높이 이상이면 해당 팔레트] (위에서부터 검사) */
   topPalette: [{ minY: -1, palette: 'earth' }, { minY: 5, palette: 'rock' }, { minY: -1000, palette: 'cliff' }] as const,
 };

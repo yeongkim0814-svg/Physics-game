@@ -229,26 +229,7 @@ export class GameWorld {
     if (isPS1) return this.buildSkyPS1();
     this.daySky = new DaySky(this.scene);
     if (LP.features.backdrop) this.backdrop = new Backdrop(this.scene);
-    const desat = VISUAL.lowpoly.desat.landmarkBase, key = LP.landmarkKey, tile = VISUAL.lowpoly.terrain.tile.landmark;
-    // 원경 실루엣: 단색 팔레트 + 약한 타일 변화 (안개 원근에 잠긴다)
-    const flat = (c: number): TerrainLook => ({ palettes: { rock: [c], earth: [c], cliff: [c], moss: [] }, lightAmp: 0.05, hueMix: 0, mossTop: 0, mossSide: 0, mossStrength: [0, 0], bottomShade: 1, shadeHeight: 1 });
-    const silhouette = (pos: [number, number, number], size: [number, number, number], color: number, desaturate: number) => {
-      const d = buildBlockMesh([{ pos, size, palette: 'rock', tile }], flat(color), VISUAL.lowpoly.terrain.maxTilesPerAxis, 5);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(d.positions, 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(d.normals, 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(d.colors, 3));
-      const m = new THREE.Mesh(geo, createMaterial(0xffffff, { vertexColors: true, desaturate }));
-      m.frustumCulled = false;
-      this.scene.add(m);
-    };
-    for (const l of MAP.landmarks) {
-      silhouette(l.pos, l.size, l[key], 0);
-      if (l.band) {
-        const bs: [number, number, number] = [l.size[0] + 0.6, l.band.height, l.size[2] + 0.6];
-        silhouette([l.pos[0], l.pos[1] - l.size[1] / 2 + l.band.height / 2, l.pos[2]], bs, l.band[key], desat);
-      }
-    }
+    // 원경은 백드롭(황혼) + 하이트필드 산맥이 맡는다 (A2). 옛 박스 실루엣(MAP.landmarks)은 'ps1' 전용으로만 남는다
   }
 
   private buildSkyPS1() {

@@ -93,6 +93,17 @@ const TERRAIN_MASSIFS: MassifDef[] = [
   { center: [128, -128], radius: 22, top: 9, seed: 215 },
   { center: [40, -140], radius: 26, top: 18, seed: 216 },
   { center: [-100, -135], radius: 20, top: 9, seed: 217 },
+  // 고립 암주(spire): 반경 10~14m 의 가는 기둥. 계곡에서 고원보다 높이 솟아 중거리 실루엣에 수직 리듬을 준다
+  { center: [-100, -170], radius: 12, top: 36, seed: 221 },
+  { center: [-52, -215], radius: 11, top: 45, seed: 222 },
+  { center: [95, -165], radius: 13, top: 27, seed: 223 },
+  { center: [150, -110], radius: 12, top: 45, seed: 224 },
+  { center: [-165, -95], radius: 11, top: 36, seed: 225 },
+  { center: [-150, 45], radius: 12, top: 27, seed: 226 },
+  { center: [140, 75], radius: 11, top: 36, seed: 227 },
+  { center: [45, 160], radius: 13, top: 27, seed: 228 },
+  { center: [-85, 150], radius: 10, top: 36, seed: 229 },
+  { center: [110, -215], radius: 14, top: 45, seed: 230 },
 ];
 
 export const MAP = {
