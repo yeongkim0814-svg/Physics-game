@@ -2,9 +2,15 @@ import * as THREE from 'three';
 import { addStaticBox, RAPIER } from '../core/physics';
 import type { Conductor } from '../core/types';
 import { MAP, type BlockDef, type BlockKind } from '../data/map';
-import { CUES, lambert } from '../render/palette';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { COL, CUES } from '../render/palette';
+import { createMaterial } from '../render/materials';
 import { createBoxGeometryWithUV } from '../render/boxGeometry';
 import { floorTexture, metalTexture, skyTexture, waterTexture, wallTexture } from '../render/textures';
+import { lowpolyBox } from '../render/tint';
+import { DaySky } from '../render/daySky';
+import { isPS1 } from '../render/style';
+import { buildDecor } from './buildDecor';
 import { VISUAL } from '../config/settings';
 import { TUNING } from '../config/tuning';
 import { gridNodes, inRect, lineNodes, stairBlocks } from './mapGen';
@@ -48,6 +54,11 @@ export class GameWorld {
   readonly mobSpawns = MAP.mobSpawns;
   private flashers: Flasher[] = [];
   private tmpDim = (c: number, k: number) => new THREE.Color(c).multiplyScalar(k);
+  /** 'lowpoly' 낮 하늘 (ps1 에서는 null) */
+  private daySky: DaySky | null = null;
+  /** 같은 재질을 쓰는 정적 박스는 하나의 메시로 합친다 ('lowpoly' 전용, 드로우콜 절감) */
+  private batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  private concreteMat: THREE.Material | null = null;
 
   constructor(private scene: THREE.Scene, private physics: RAPIER.World) {
     this.buildGround();
@@ -55,6 +66,13 @@ export class GameWorld {
     this.buildBlocks();
     this.buildStairs();
     this.buildWater();
+    this.flushBatches();
+    if (!isPS1) buildDecor(scene, GameWorld.PLAIN_Y);
+  }
+
+  /** 카메라를 따라가는 하늘(돔·해·구름) 갱신. 렌더 직전 매 프레임 호출 */
+  updateSky(cam: THREE.Camera, dt: number) {
+    this.daySky?.update(cam, dt);
   }
 
   /** 수평 좌표가 물웅덩이 안인가 (T6 누전 판정) */
@@ -66,39 +84,86 @@ export class GameWorld {
     for (const f of this.flashers) f.update(dt);
   }
 
-  private box(pos: [number, number, number], size: [number, number, number], mat: THREE.Material, collide = true, visual = true) {
+  /**
+   * 박스 하나 (충돌 + 비주얼). 'lowpoly' 는 정점색 박스를 segment(m) 단위로 분할하고, batch 면 같은 재질끼리 합쳐 flushBatches 에서 한 번에 그린다.
+   * 'ps1' 은 기존대로 UV 타일 박스를 개별 메시로 둔다.
+   */
+  private box(pos: [number, number, number], size: [number, number, number], mat: THREE.Material, collide = true, visual = true, segment: number = VISUAL.lowpoly.tint.segment) {
     if (collide) addStaticBox(this.physics, pos, size);
     if (!visual) return null;
-    const m = new THREE.Mesh(createBoxGeometryWithUV(...size), mat);
-    m.position.set(...pos);
-    this.scene.add(m);
-    return m;
+    if (isPS1) {
+      const m = new THREE.Mesh(createBoxGeometryWithUV(...size), mat);
+      m.position.set(...pos);
+      this.scene.add(m);
+      return m;
+    }
+    const geo = lowpolyBox(pos, size, segment);
+    const list = this.batches.get(mat);
+    if (list) { list.push(geo); return null; }
+    this.scene.add(new THREE.Mesh(geo, mat));
+    return null;
+  }
+
+  /** 재질을 배치 대상으로 등록 (이후 box() 의 지오메트리가 이 재질로 모인다) */
+  private batched(mat: THREE.Material) {
+    if (!isPS1 && !this.batches.has(mat)) this.batches.set(mat, []);
+    return mat;
+  }
+
+  private flushBatches() {
+    for (const [mat, list] of this.batches) {
+      if (!list.length) continue;
+      const merged = mergeGeometries(list, false);
+      if (merged) this.scene.add(new THREE.Mesh(merged, mat));
+      for (const g of list) g.dispose();
+    }
+    this.batches.clear();
   }
 
   private buildGround() {
     const S = MAP.size, H = MAP.wallHeight;
-    const floorMat = lambert(0xffffff, { map: floorTexture() });
-    for (const g of MAP.ground) this.box(g.pos, g.size, floorMat);
+    const floorMat = this.batched(isPS1
+      ? createMaterial(0xffffff, { map: floorTexture() })
+      : createMaterial(COL.sand, { vertexColors: true }));
+    const T0 = VISUAL.lowpoly.tint;
+    for (const g of MAP.ground) this.box(g.pos, g.size, floorMat, true, true, T0.groundSegment);
     // 맵 밖 평원: 보이기만 한다 (안개가 지평선을 지운다). 협곡을 덮지 않게 맵 바깥 띠 4개로 깔고, 지면보다 살짝 낮춘다
     const e = S / 2 + MAP.groundMargin, P = GameWorld.PLAIN_SIZE, T = MAP.groundThickness, py = GameWorld.PLAIN_Y - T / 2;
-    const strip = (cx: number, cz: number, sx: number, sz: number) => this.box([cx, py, cz], [sx, T, sz], floorMat, false);
+    const strip = (cx: number, cz: number, sx: number, sz: number) => this.box([cx, py, cz], [sx, T, sz], floorMat, false, true, T0.farSegment);
     strip(0, -(e + P) / 2, P * 2, P - e); strip(0, (e + P) / 2, P * 2, P - e);
     strip(-(e + P) / 2, 0, P - e, e * 2); strip((e + P) / 2, 0, P - e, e * 2);
     // 외곽 충돌 벽 (렌더 안 함: 원경 랜드마크가 가려지지 않게)
     const hs = S / 2 + 0.5;
-    const wall = lambert(0xffffff);
+    const wall = floorMat;
     this.box([0, H / 2, -hs], [S + 2, H, 1], wall, true, false);
     this.box([0, H / 2, hs], [S + 2, H, 1], wall, true, false);
     this.box([-hs, H / 2, 0], [1, H, S], wall, true, false);
     this.box([hs, H / 2, 0], [1, H, S], wall, true, false);
   }
 
-  /** 안개 너머 랜드마크 실루엣(밑동 탈색) + 달. 안개를 무시하고 평평한 색(발광만)으로 그린다 */
+  /**
+   * 하늘 + 원경 랜드마크. 'ps1': 노을 돔+별+달, 랜드마크는 안개 무시 발광 실루엣(밑동 탈색).
+   * 'lowpoly': 낮 하늘 돔+해+구름, 랜드마크는 안개 원근을 받는 일반 재질(밑동 띠는 탈색 파라미터 데모).
+   */
   private buildSky() {
+    if (isPS1) return this.buildSkyPS1();
+    this.daySky = new DaySky(this.scene);
+    const seg = 25, desat = VISUAL.lowpoly.desat.landmarkBase;
+    for (const l of MAP.landmarks) {
+      this.box(l.pos, l.size, createMaterial(l.lowColor, { vertexColors: true }), false, true, seg);
+      if (l.band) {
+        const bs: [number, number, number] = [l.size[0] + 0.6, l.band.height, l.size[2] + 0.6];
+        this.box([l.pos[0], l.pos[1] - l.size[1] / 2 + l.band.height / 2, l.pos[2]], bs,
+          createMaterial(l.band.lowColor, { vertexColors: true, desaturate: desat }), false, true, seg);
+      }
+    }
+  }
+
+  private buildSkyPS1() {
     // 하늘 돔: 절차 그라디언트(위 남보라 → 지평선 호박)+별+구름. 안개·깊이 무시, 카메라를 따라다니며 항상 맨 뒤에 그린다
     const sd = VISUAL.lighting.sunDir;
     const sunAz = Math.atan2(sd[2], -sd[0]); // SphereGeometry 의 u(방위) 규약: 방향 (x,z) = (-cos φ, sin φ)
-    const skyMat = lambert(0x000000, { emissive: 0xffffff, emissiveMap: skyTexture(sunAz, VISUAL.fog.color), fog: false });
+    const skyMat = createMaterial(0x000000, { emissive: 0xffffff, emissiveMap: skyTexture(sunAz, VISUAL.fog.color), fog: false });
     skyMat.side = THREE.BackSide;
     skyMat.depthTest = false;
     skyMat.depthWrite = false;
@@ -107,7 +172,7 @@ export class GameWorld {
     dome.frustumCulled = false;
     dome.onBeforeRender = (_r, _s, cam) => dome.position.copy(cam.position);
     this.scene.add(dome);
-    const flat = (color: number) => lambert(0x000000, { emissive: color, fog: false });
+    const flat = (color: number) => createMaterial(0x000000, { emissive: color, fog: false });
     for (const l of MAP.landmarks) {
       this.box(l.pos, l.size, flat(l.color), false);
       if (l.band) {
@@ -122,9 +187,16 @@ export class GameWorld {
 
   /** 종류별 재질. 금속은 구조물마다 따로 만들어 개별로 번쩍이게 한다 */
   private blockMaterial(kind: BlockKind) {
-    if (kind === 'concrete') return { mat: lambert(0xffffff, { map: wallTexture(false) }), flasher: null };
-    const emissive = this.tmpDim(CUES.conductor, 0.28);
-    const mat = lambert(0xffffff, { map: metalTexture(), emissive: emissive.getHex() });
+    if (kind === 'concrete') {
+      this.concreteMat ??= this.batched(isPS1
+        ? createMaterial(0xffffff, { map: wallTexture(false) })
+        : createMaterial(COL.stone, { vertexColors: true }));
+      return { mat: this.concreteMat, flasher: null };
+    }
+    const emissive = this.tmpDim(CUES.conductor, isPS1 ? 0.28 : VISUAL.lowpoly.conductorGlow);
+    const mat = isPS1
+      ? createMaterial(0xffffff, { map: metalTexture(), emissive: emissive.getHex() })
+      : createMaterial(COL.copper, { vertexColors: true, emissive: emissive.getHex() });
     const flasher = new Flasher([mat], emissive);
     this.flashers.push(flasher);
     return { mat, flasher };
@@ -157,7 +229,9 @@ export class GameWorld {
   private buildWater() {
     for (const w of MAP.water) {
       const emissive = this.tmpDim(CUES.conductor, 0.3);
-      const mat = lambert(0xffffff, { map: waterTexture(), emissive: emissive.getHex() });
+      const mat = isPS1
+        ? createMaterial(0xffffff, { map: waterTexture(), emissive: emissive.getHex() })
+        : createMaterial(COL.verdigris, { vertexColors: true, emissive: emissive.getHex() });
       const flasher = new Flasher([mat], emissive);
       this.flashers.push(flasher);
       this.box([w.center[0], WATER_Y / 2, w.center[1]], [w.size[0], WATER_Y, w.size[1]], mat, false);
