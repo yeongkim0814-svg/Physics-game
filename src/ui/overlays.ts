@@ -5,7 +5,7 @@ const BTN = 'position:fixed;z-index:20;padding:6px 10px;font:bold 12px monospace
   'background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.4);user-select:none';
 
 /** 전체화면/FPS 토글 버튼, FPS 표시, 세로 화면 회전 안내 */
-export function createOverlays(root: HTMLElement, isTouch: () => boolean, onToggleTouchDebug: () => void, onBag: () => void) {
+export function createOverlays(root: HTMLElement, isTouch: () => boolean, onToggleTouchDebug: () => void) {
   const mk = (css: string, text: string) => {
     const d = document.createElement('div');
     d.style.cssText = css;
@@ -24,9 +24,6 @@ export function createOverlays(root: HTMLElement, isTouch: () => boolean, onTogg
       }
     } catch { /* 지원 안 함/거부: 무시 */ }
   });
-
-  // 가방(안전 보관함 이동) — 레이드는 일시정지된다
-  onTap(mk(`${BTN};top:8px;right:204px`, 'BAG'), onBag);
 
   // 터치 진단: 동시에 인식되는 손가락과 역할을 화면에 표시 (멀티터치 문제 확인용)
   onTap(mk(`${BTN};top:8px;right:136px`, 'TOUCH'), onToggleTouchDebug);

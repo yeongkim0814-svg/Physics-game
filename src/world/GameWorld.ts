@@ -6,8 +6,6 @@ import { CUES, lambert } from '../render/palette';
 import { createBoxGeometryWithUV } from '../render/boxGeometry';
 import { floorTexture, metalTexture, waterTexture, wallTexture } from '../render/textures';
 import { TUNING } from '../config/tuning';
-import { Extraction } from './Extraction';
-import { Loot } from './Loot';
 import { gridNodes, inRect, lineNodes, stairBlocks } from './mapGen';
 
 const FLASH_TIME = 0.3;
@@ -39,12 +37,10 @@ class ConductorNode implements Conductor {
   shock(damage: number) { this.lastShock = damage; this.flasher.flash(); }
 }
 
-/** 맵 데이터(data/map.ts)로 지형·충돌·전도체·전리품·탈출 지점을 만든다 */
+/** 맵 데이터(data/map.ts)로 지형·충돌·전도체를 만든다 */
 export class GameWorld {
   readonly conductors: Conductor[] = [];
   readonly spawn = new THREE.Vector3(...MAP.spawn);
-  readonly extraction: Extraction;
-  readonly loot: Loot;
   readonly mobSpawns = MAP.mobSpawns;
   private flashers: Flasher[] = [];
   private tmpDim = (c: number, k: number) => new THREE.Color(c).multiplyScalar(k);
@@ -54,9 +50,6 @@ export class GameWorld {
     this.buildBlocks();
     this.buildStairs();
     this.buildWater();
-    this.loot = new Loot(scene);
-    for (const l of MAP.loot) this.loot.spawn(l.pos, l.materials);
-    this.extraction = new Extraction(scene, MAP.exit.pos, MAP.exit.radius);
   }
 
   /** 수평 좌표가 물웅덩이 안인가 (T6 누전 판정) */
@@ -66,7 +59,6 @@ export class GameWorld {
 
   update(dt: number) {
     for (const f of this.flashers) f.update(dt);
-    this.extraction.update(dt);
   }
 
   private box(pos: [number, number, number], size: [number, number, number], mat: THREE.Material, collide = true) {

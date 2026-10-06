@@ -74,6 +74,13 @@ export class PlayerController implements ImpulseTarget, Damageable {
     this.velocity.set(0, 0, 0);
   }
 
+  /** 사망 후 부활: 체력 회복 + 해당 위치로 이동 */
+  respawn(x: number, y: number, z: number) {
+    this.hp = P.maxHp;
+    this.dead = false;
+    this.teleport(x, y, z);
+  }
+
   /** 발사 반동 등으로 시점이 튐 (rad). pitch 는 위쪽(+) */
   kick(pitch: number, yaw: number) {
     this.pitch = THREE.MathUtils.clamp(this.pitch + pitch, -1.5, 1.5);
