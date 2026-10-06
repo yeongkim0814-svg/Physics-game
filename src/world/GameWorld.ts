@@ -4,7 +4,8 @@ import type { Conductor } from '../core/types';
 import { MAP, type BlockDef, type BlockKind } from '../data/map';
 import { CUES, lambert } from '../render/palette';
 import { createBoxGeometryWithUV } from '../render/boxGeometry';
-import { floorTexture, metalTexture, waterTexture, wallTexture } from '../render/textures';
+import { floorTexture, metalTexture, skyTexture, waterTexture, wallTexture } from '../render/textures';
+import { VISUAL } from '../config/settings';
 import { TUNING } from '../config/tuning';
 import { gridNodes, inRect, lineNodes, stairBlocks } from './mapGen';
 
@@ -94,6 +95,18 @@ export class GameWorld {
 
   /** 안개 너머 랜드마크 실루엣(밑동 탈색) + 달. 안개를 무시하고 평평한 색(발광만)으로 그린다 */
   private buildSky() {
+    // 하늘 돔: 절차 그라디언트(위 남보라 → 지평선 호박)+별+구름. 안개·깊이 무시, 카메라를 따라다니며 항상 맨 뒤에 그린다
+    const sd = VISUAL.lighting.sunDir;
+    const sunAz = Math.atan2(sd[2], -sd[0]); // SphereGeometry 의 u(방위) 규약: 방향 (x,z) = (-cos φ, sin φ)
+    const skyMat = lambert(0x000000, { emissive: 0xffffff, emissiveMap: skyTexture(sunAz, VISUAL.fog.color), fog: false });
+    skyMat.side = THREE.BackSide;
+    skyMat.depthTest = false;
+    skyMat.depthWrite = false;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(VISUAL.sky.radius, 32, 16), skyMat);
+    dome.renderOrder = -1000;
+    dome.frustumCulled = false;
+    dome.onBeforeRender = (_r, _s, cam) => dome.position.copy(cam.position);
+    this.scene.add(dome);
     const flat = (color: number) => lambert(0x000000, { emissive: color, fog: false });
     for (const l of MAP.landmarks) {
       this.box(l.pos, l.size, flat(l.color), false);

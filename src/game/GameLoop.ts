@@ -34,7 +34,7 @@ export async function startGame(root: HTMLElement) {
   scene.background = new THREE.Color(VISUAL.fog.color);
   scene.fog = new THREE.Fog(VISUAL.fog.color, VISUAL.fog.near, VISUAL.fog.far);
   const L = VISUAL.lighting;
-  scene.add(new THREE.HemisphereLight(L.ambient, 0, L.ambientIntensity));
+  scene.add(new THREE.HemisphereLight(L.ambient, L.ambientGround, L.ambientIntensity));
   const sun = new THREE.DirectionalLight(L.sun, L.sunIntensity);
   sun.position.set(...L.sunDir).multiplyScalar(L.sunDistance);
   scene.add(sun);
@@ -76,7 +76,7 @@ export async function startGame(root: HTMLElement) {
 
   const input = new Input(renderer.domElement, root);
   if (import.meta.env.DEV) {
-    (window as any).__game = { player, avatar, followCam, gfx, input, world, get weapon() { return weapon; }, projectiles, throwables, gameWorld, mobs, arcs, scene, camera };
+    (window as any).__game = { resetAim: () => { aimTimer = 0; player.aiming = false; }, player, avatar, followCam, gfx, input, world, get weapon() { return weapon; }, projectiles, throwables, gameWorld, mobs, arcs, scene, camera };
   }
 
   const overlays = createOverlays(root, () => input.touch.enabled, () => input.touch.toggleDebug());

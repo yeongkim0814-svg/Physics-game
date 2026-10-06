@@ -9,30 +9,38 @@ export const VISUAL = {
   /** 정점 스냅: 정점을 내부 픽셀 격자(snapPixels 배수)에 맞춰 PS1 특유의 떨림 */
   vertexSnap: true,
   snapPixels: 1,
-  /** 절차 생성 텍스처 한 변 픽셀 수 (16~64) / 텍스처 1타일이 덮는 월드 길이(m) */
-  textureSize: 32,
+  /** 절차 생성 텍스처 한 변 픽셀 수 (16~64). 벽돌/타일 패턴이 읽히는 최소 해상도는 64 / 텍스처 1타일이 덮는 월드 길이(m) */
+  textureSize: 64,
   textureTileMeters: 2,
   /** 지형 박스를 이 크기(m) 이하 조각으로 분할 (정점 스냅이 큰 폴리곤 텍스처를 흔드는 것 방지) */
   maxPolySize: 8,
   /** 후처리 5단계 (PERF.postprocess 로 전체 on/off). 강도는 여기서 튜닝 */
   post: {
     edge: 0.62, edgeLo: 0.09, edgeHi: 0.22, // 깊이 윤곽선: 어두워지는 정도 / smoothstep 임계값
-    saturation: 0.9,                        // 채도 유지 비율 (낮을수록 탁함). 색이 정보이므로 높게
-    contrast: 1.08,
-    tint: [1.0, 0.96, 0.9] as [number, number, number], // 따뜻한 석양 색조
-    black: 0.14,                          // 검정 최소값 (완전한 검정 방지)
-    vignette: 0.4,
+    saturation: 1.05,                       // 채도 유지 비율 (1 이상 = 선명). 색이 정보이므로 높게
+    contrast: 1.15,
+    tint: [1.0, 0.97, 0.92] as [number, number, number], // 약한 따뜻한 석양 색조
+    black: 0.1,                           // 검정 최소값 (완전한 검정 방지)
+    vignette: 0.3,
     grain: 0.01,                            // 프레임마다 변하는 그레인
     grainSpeed: 12,
     scanline: 0.05,
     levels: 16,                             // 채널당 양자화 단계 (4x4 바이어 디더)
   },
-  /** 보라~남색 석양 하늘 = 안개색 = 배경색. 멀리 갈수록 이 색에 잠긴다 */
-  fog: { color: 0x5a4b7e, near: 30, far: 130 },
+  /** 지평선 호박빛 = 안개색 = 배경색(하늘 돔은 지평선 색과 이 색을 맞춘다). 멀리 갈수록 이 색에 잠긴다 */
+  fog: { color: 0xd9946a, near: 30, far: 150 },
+  /** 절차 하늘(render/textures.ts skyTexture): 돔 반지름은 카메라 far 안쪽, 깊이 무시로 항상 맨 뒤에 그린다 */
+  sky: {
+    radius: 400, texWidth: 512, texHeight: 256,
+    gradientPower: 0.62,     // 지평선→천정 색 분포 (작을수록 호박/노을 띠가 두꺼움)
+    glowPower: 3, glowAmount: 0.55, // 태양 방위의 노을 번짐: cos^power, 최대로 끌어올리는 비율
+    starCount: 110, starMinElev: 0.25, starMaxSin: 0.96, // 별 개수 / 최소 고도(rad) / 최대 고도의 sin (천정 바로 위 늘어남 방지)
+    cloudCount: 8, cloudRows: 3, cloudWidth: 90, cloudBandLo: 0.12, cloudBandHi: 0.42, // 구름 개수/폭(px)/고도 범위(0~1)
+  },
   /** 차가운 보랏빛 환경광(그늘) 대 따뜻한 호박빛 태양(양지) 대비. 태양은 낮게 깔려 벽면마다 명암이 갈린다 */
   lighting: {
-    ambient: 0x8f9be0, ambientIntensity: 1.15,
-    sun: 0xffc27a, sunIntensity: 1.3, sunDir: [0.55, 0.32, 0.77] as [number, number, number], sunDistance: 40,
+    ambient: 0x7488ee, ambientGround: 0x6c5268, ambientIntensity: 1.9, // 위쪽 면=차가운 하늘색, 아래쪽 면=따뜻한 바닥 반사
+    sun: 0xffa24a, sunIntensity: 3.5, sunDir: [0.8, 0.3, 0.45] as [number, number, number], sunDistance: 40,
   },
   /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
   character: {
