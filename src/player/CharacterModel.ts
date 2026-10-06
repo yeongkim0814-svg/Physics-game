@@ -1,6 +1,8 @@
 import type * as THREE from 'three';
+import { VISUAL } from '../config/settings';
 import { placeholderCharacter } from './placeholderCharacter';
 import { protagonistCharacter } from './protagonistCharacter';
+import { voxelCharacter } from './voxelCharacter';
 
 /** 캐릭터가 매 프레임 받는 상태. 모델은 이것만 보고 자세를 정한다 */
 export interface CharacterState {
@@ -36,9 +38,30 @@ export interface CharacterModel {
 }
 
 /**
- * 교체 지점: 현재 주인공 모델(protagonistCharacter, M1f). 생성에 실패하면(캔버스 없는 환경 등) placeholderCharacter 로 폴백.
+ * 캐릭터 모델 선택: 기본 VISUAL.characterModel, 브라우저에서는 URL `?char=legacy|voxel` 로 덮어쓴다 (비교·롤백용).
+ */
+export function resolveCharacterModel(): 'voxel' | 'legacy' {
+  try {
+    if (typeof location !== 'undefined') {
+      const q = new URLSearchParams(location.search).get('char');
+      if (q === 'legacy' || q === 'voxel') return q;
+    }
+  } catch { /* 검색 문자열을 못 읽으면 기본값 */ }
+  return VISUAL.characterModel;
+}
+
+/**
+ * 교체 지점: 기본은 도면 복셀 카빙 주인공(voxelCharacter, M1j). `?char=legacy` 또는 VISUAL.characterModel='legacy' 면 M1h 로프트 메시(protagonistCharacter).
+ * 생성에 실패하면(캔버스 없는 환경 등) 한 단계씩 폴백: voxel → legacy → placeholder.
  */
 export function createPlayerCharacter(): CharacterModel {
+  if (resolveCharacterModel() === 'voxel') {
+    try {
+      return voxelCharacter();
+    } catch (e) {
+      console.warn('voxelCharacter 생성 실패, legacy 주인공으로 대체', e);
+    }
+  }
   try {
     return protagonistCharacter();
   } catch (e) {

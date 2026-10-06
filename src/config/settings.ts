@@ -108,6 +108,36 @@ export const VISUAL = {
       rim: { color: 0xcfe6ff, strength: 0.34, power: 3.2 },
     },
   },
+  /**
+   * 주인공 모델 선택 (M1j): 'voxel' = 도면 복셀 카빙(player/voxelCharacter.ts, 기본) / 'legacy' = M1h 로프트 메시(폴백, 사용자 승인 전까지 유지).
+   * URL `?char=legacy|voxel` 로 덮어쓸 수 있다 (모듈 로드 시 한 번 결정).
+   */
+  characterModel: 'voxel' as 'voxel' | 'legacy',
+  /** 복셀 주인공 (data: src/assets/protagonist_voxels.json, 생성: scripts/carve_character.py). 자세 계산은 아래 `character` 를 재사용하고 일부만 덮어쓴다 */
+  voxelCharacter: {
+    /** 복셀 AO: 가림 이웃 수 0(완전 가림)..3(가림 없음) → 정점색 배율 */
+    aoCurve: [0.6, 0.74, 0.88, 1] as [number, number, number, number],
+    /** AO 를 면 단위(꼭짓점 평균)로 통일: 같은 색 면의 병합이 늘어 삼각형이 크게 준다. false = 꼭짓점별(부드럽지만 약 2배 삼각형) */
+    aoPerFace: true,
+    /** 정점색 배율 (도면 색은 이미 때 탄 어두운 톤이라 legacy(0.72)보다 높게). 'ps1' 은 selfGlow/rim 이 없어 따로 둔다 */
+    exposure: 0.86,
+    ps1Exposure: 1,
+    /** 도면의 직립 자세에 맞춘 기본 자세 덮어쓰기 (공통 character 값 위에 얹는다) */
+    pose: { restLean: 0.03, kneeRest: 0.04, armRestOut: 0, leftElbowRest: 0.1, leftArmRest: 0.0, restArm: 0.15, weaponElbowRest: 0.25 },
+    /** 조준 시 도면의 바깥 기울기를 상쇄하는 비율 (팔이 앞으로 곧게 뻗게) 과 그 보간 속도(1/s) */
+    aimTiltCancel: 1, aimBlendRate: 12,
+    /** 발목: 정강이 기울기를 상쇄해 발을 지면과 나란히 두는 비율 (0 = 정강이와 함께 회전) */
+    footLevel: 0.8,
+    /** 실험복 아랫단 앞/뒤 자락이 다리 스윙을 따라가는 비율 (앞자락은 앞으로 들린 다리, 뒷자락은 뒤로 간 다리) */
+    skirtFollow: 0.45,
+    /** 어깨 천 자락 살랑임: 위상 속도(rad/s) / 정지·이동 진폭(rad) / 속도 비례 뒤로 날림(rad) / 좌우 흔들림 비 / 앞뒤 자락 위상차 */
+    sash: { rate: 3.2, ampIdle: 0.035, ampMove: 0.16, windBack: 0.22, sideRatio: 0.6, phaseBack: 1.7 },
+    /** 장치 화면 발광 청록 (평상시 비율은 data/protagonist.ts DEVICE.idleGlow 와 같은 값을 쓴다) */
+    screenColor: 0x6fe6dc,
+    idleGlow: 0.6,
+    /** 예산 (단위 테스트가 검사): 캐릭터 삼각형 / 드로우콜(메시) */
+    budget: { triangles: 6000, drawCalls: 20 },
+  },
   /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
   character: {
     strideRate: 1.9,       // 걸음 위상 진행 (rad per m)

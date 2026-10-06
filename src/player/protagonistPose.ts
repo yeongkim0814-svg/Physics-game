@@ -16,7 +16,10 @@ export interface Pose {
   chest: number;
 }
 
-type Cfg = typeof VISUAL.character;
+/** 자세 설정 형식: VISUAL.character 의 리터럴 타입을 number 로 넓힌 것 (복셀 주인공이 일부 값을 덮어쓸 수 있게) */
+type Widen<T> = { -readonly [K in keyof T]: T[K] extends number ? number : T[K] extends object ? Widen<T[K]> : T[K] };
+export type PoseConfig = Widen<typeof VISUAL.character>;
+type Cfg = PoseConfig;
 export type PoseInput = Pick<CharacterState, 'speed' | 'grounded' | 'aiming' | 'vy' | 'aimPitch'>;
 
 export const REST_POSE: Pose = {
