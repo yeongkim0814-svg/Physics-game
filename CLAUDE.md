@@ -8,6 +8,7 @@
 
 ## 코드 규칙
 - TypeScript strict. 외부 에셋 없음(기본 도형+단색/정점색).
+- **예외(사용자 승인, 1건)**: 주인공 얼굴 텍스처 `src/assets/protagonist_face.png` 는 사용자 제공 일러스트에서 변환한 외부 에셋이다 (`docs/CHARACTER_ASSETS.md`). 그 외 에셋 금지
 - **매직넘버 금지**: 게임플레이 수치는 `src/config/tuning.ts`, 비주얼/성능/터치는 `src/config/settings.ts`, 데이터 정의는 `src/data/`
 - 시스템 간 통신은 `src/core/types.ts` 인터페이스로 (구체 클래스 직접 의존 최소화)
 - 물리: Rapier(`@dimforge/rapier3d-compat`, `await RAPIER.init()` 필요)
