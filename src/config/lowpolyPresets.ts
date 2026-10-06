@@ -60,6 +60,8 @@ export interface LowpolyPreset {
   features: { backdrop: boolean; beam: boolean; debris: boolean; windows: boolean; ledges: boolean };
   /** 떠 있는 파편 색 후보 */
   debrisColors: number[];
+  /** 기술 모듈(기둥·아치·벽·링) 인스턴스 색 후보 (G5) */
+  techColors: number[];
   /** 빛기둥 색: 중심(밝음)·바깥 번짐 */
   beamColors: { core: number; outer: number };
 }
@@ -107,6 +109,7 @@ export const LP_DAY: LowpolyPreset = {
   },
   features: { backdrop: false, beam: false, debris: false, windows: false, ledges: false },
   debrisColors: [0xd9c4a0],
+  techColors: [0xc9b9a2, 0xb7c3d6, 0xd9c4a0],
   beamColors: { core: 0xffffff, outer: 0xcfe7f5 },
 };
 
@@ -162,5 +165,6 @@ export const LP_DUSK: LowpolyPreset = {
   },
   features: { backdrop: true, beam: true, debris: true, windows: true, ledges: true },
   debrisColors: [0x4e4270, 0x5e4a72, 0x6e5060, 0x7a5a58, 0x463c68, 0x8a6a5a],
+  techColors: [0x3a3258, 0x463a66, 0x2f2c4c, 0x52406a],
   beamColors: { core: 0xe6e0ff, outer: 0x8c7cff },
 };

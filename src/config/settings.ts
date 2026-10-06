@@ -55,6 +55,17 @@ export const VISUAL = {
     outline: { enabled: false, color: 0x2a3550, strength: 0.4, edgeLo: 0.09, edgeHi: 0.22 },
     /** 지역 탈색(색이 정보): 월드 xz 원형 지역 안의 모든 재질 채도를 낮춘다. [x, z, 반경 m, 강도 0~1]. 최대 4개. 지금은 비어 있음 */
     desat: { regions: [] as [number, number, number, number][], softness: 0.5, landmarkBase: 0.88 },
+    /** 저해상도 절차 텍스처 (G3, render/texKit.ts): 월드 좌표 트리플래너, NearestFilter. size = 한 장 한 변 px, tile = 한 장이 덮는 월드 길이(m), amp = 알베도 변조 강도.
+     * 밉맵이 없어 멀리서 반짝이므로 fadeNear~fadeEnd(m) 사이에서 변조를 0 으로, 발광선은 평균 glowAvg 로 수렴시킨다 */
+    texture: { size: 32, seed: 7, amp: 0.3, terrainTile: 6, metalTile: 3, techTile: 4, fadeNear: 45, fadeEnd: 150, glowAvg: 0.3 },
+    /** 청록 발광 기술 (G9). 장식(선만, 정적·약함)과 전도체 단서(면 전체, 맥동·더 밝음)를 구분한다 */
+    tech: {
+      decorColor: 0x46b4cf, decorGlow: 1.0,
+      /** 전도체 맥동: 평상시 발광 × (1 ± amp·sin(2π·rate·t)) */
+      conductorPulse: { amp: 0.35, rate: 0.6 },
+      /** 기술 모듈 키트 (G5, world/techModules.ts): 고원 바깥 시각 전용 배치 */
+      modules: { seed: 41, count: 26, range: [96, 280] as [number, number], rings: 3 },
+    },
     /** 금속 구조물(전도체)의 청록 발광 비율 (CUES.conductor × 이 값). 밝은 낮에도 전도체가 읽히게 */
     conductorGlow: 0.3,
   },

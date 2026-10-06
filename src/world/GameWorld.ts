@@ -12,6 +12,8 @@ import { Backdrop } from '../render/backdrop';
 import { buildBlockMesh, type BoxSpec, type FaceKey, type MeshData, type PaletteKey, type TerrainLook } from './blockTerrain';
 import { Atmosphere } from './atmosphere';
 import { buildDecor } from './buildDecor';
+import { buildTechModules } from './techModules';
+import { pulseScale } from '../render/texKit';
 import { VISUAL } from '../config/settings';
 import { TUNING } from '../config/tuning';
 import { gridNodes, inRect, lineNodes, stairBlocks } from './mapGen';
@@ -26,12 +28,19 @@ const WATER_Y = 0.06;
 /** 감전 시 구조물/물이 번쩍이는 효과 (T6 코일 연쇄 시각화용) */
 class Flasher {
   private t = 0;
+  private clock = 0;
   constructor(private mats: THREE.MeshLambertMaterial[], private base: THREE.Color) {}
   flash() { this.t = FLASH_TIME; }
   update(dt: number) {
-    if (this.t <= 0) return;
-    this.t = Math.max(0, this.t - dt);
-    for (const m of this.mats) m.emissive.lerpColors(this.base, FLASH_COLOR, this.t / FLASH_TIME);
+    this.clock += dt;
+    if (this.t > 0) {
+      this.t = Math.max(0, this.t - dt);
+      for (const m of this.mats) m.emissive.lerpColors(this.base, FLASH_COLOR, this.t / FLASH_TIME);
+      return;
+    }
+    // 평상시: 전도체 단서는 맥동한다 (G9: 장식 청록은 정적이라 이것으로 구분)
+    const P = VISUAL.lowpoly.tech.conductorPulse, k = pulseScale(this.clock, P.amp, P.rate);
+    for (const m of this.mats) m.emissive.copy(this.base).multiplyScalar(k);
   }
 }
 
@@ -80,6 +89,7 @@ export class GameWorld {
     this.flushBatches();
     this.flushTerrain();
     buildDecor(scene, this.terrainField!);
+    buildTechModules(scene, this.terrainField!);
     if (this.backdrop || LP.features.beam || LP.features.debris || LP.features.windows) this.atmosphere = new Atmosphere(scene);
   }
 
@@ -119,7 +129,7 @@ export class GameWorld {
     geo.setAttribute('position', new THREE.BufferAttribute(cat('positions'), 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(cat('normals'), 3));
     geo.setAttribute('color', new THREE.BufferAttribute(cat('colors'), 3));
-    const mesh = new THREE.Mesh(geo, this.terrainMat ?? (this.terrainMat = createMaterial(0xffffff, { vertexColors: true })));
+    const mesh = new THREE.Mesh(geo, this.terrainMat ?? (this.terrainMat = createMaterial(0xffffff, { vertexColors: true, tex: { top: 'grain', side: 'stone', tile: VISUAL.lowpoly.texture.terrainTile, amp: VISUAL.lowpoly.texture.amp } })));
     mesh.frustumCulled = false; // 맵 전체를 덮는 큰 메시 (바운딩 계산 비용 대신)
     this.scene.add(mesh);
   }
@@ -205,7 +215,8 @@ export class GameWorld {
       return { mat: this.concreteMat, flasher: null };
     }
     const emissive = this.tmpDim(CUES.conductor, VISUAL.lowpoly.conductorGlow);
-    const mat = createMaterial(COL.copper, { vertexColors: true, emissive: emissive.getHex() });
+    const X = VISUAL.lowpoly.texture;
+    const mat = createMaterial(COL.copper, { vertexColors: true, emissive: emissive.getHex(), tex: { top: 'metal', side: 'metal', tile: X.metalTile, amp: X.amp } });
     const flasher = new Flasher([mat], emissive);
     this.flashers.push(flasher);
     return { mat, flasher };

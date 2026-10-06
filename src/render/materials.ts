@@ -2,11 +2,16 @@ import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import { DESAT_MAX_REGIONS, type DesatRegion } from './desat';
 import { LP } from './style';
+import { atlasPixels, TEX_KINDS, type TexKind } from './texKit';
 
 // 색을 코드에서 쓴 그대로 출력 (조명·안개 계산을 단순하게). Color 생성보다 먼저 설정해야 한다.
 THREE.ColorManagement.enabled = false;
 
+/** 저해상도 절차 텍스처 (G3): 월드 좌표 트리플래너. top = 윗면(법선 y>0.7), side = 옆면. glow>0 이면 텍스처 알파(발광선)를 decor 청록으로 발광 */
+export interface TexOpts { top: TexKind; side: TexKind; tile: number; amp: number; glow?: number }
+
 export interface MaterialOpts {
+  tex?: TexOpts;
   map?: THREE.Texture;
   /** 가독성 단서용 발광색 (CUES) */
   emissive?: number;
@@ -22,6 +27,19 @@ export interface MaterialOpts {
   selfGlow?: readonly [number, number, number];
   /** (로우폴리) 림 라이트: 시선과 비스듬한 가장자리에 더하는 얇은 역광 효과. color 0xRRGGBB, strength 0..1, power 지수(클수록 얇음) */
   rim?: { color: number; strength: number; power: number };
+}
+
+/** 텍스처 아틀라스 (층 = TEX_KINDS): 한 장을 모든 재질이 공유한다. NearestFilter·밉맵 없음 = 픽셀이 그대로 보인다 */
+let atlas: THREE.DataTexture | null = null;
+function texAtlas() {
+  if (atlas) return atlas;
+  const T = VISUAL.lowpoly.texture;
+  atlas = new THREE.DataTexture(atlasPixels(T.size, T.seed), T.size, T.size * TEX_KINDS.length, THREE.RGBAFormat);
+  atlas.magFilter = atlas.minFilter = THREE.NearestFilter;
+  atlas.generateMipmaps = false;
+  atlas.colorSpace = THREE.NoColorSpace;
+  atlas.needsUpdate = true;
+  return atlas;
 }
 
 /** 지역 탈색 공유 유니폼: 모든 로우폴리 재질이 월드 xz 위치로 같은 지역 목록을 본다 */
@@ -58,7 +76,17 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
   const rimColor = { value: new THREE.Color(o.rim?.color ?? 0) };
   const rimStrength = { value: o.rim?.strength ?? 0 };
   const rimPower = { value: o.rim?.power ?? 3 };
+  const tx = o.tex, Tn = VISUAL.lowpoly.texture;
+  const texUniforms = tx ? {
+    uTex: { value: texAtlas() }, uTexN: { value: Tn.size }, uTexLayers: { value: TEX_KINDS.length },
+    uTexTop: { value: TEX_KINDS.indexOf(tx.top) }, uTexSide: { value: TEX_KINDS.indexOf(tx.side) },
+    uTexTile: { value: tx.tile }, uTexAmp: { value: tx.amp }, uTexFade: { value: new THREE.Vector3(Tn.fadeNear, Tn.fadeEnd, Tn.glowAvg) },
+    uTexGlow: { value: new THREE.Color(VISUAL.lowpoly.tech.decorColor).multiplyScalar(tx.glow ?? 0) },
+  } : null;
+  // 텍스처 유무로 셰이더 코드가 달라지므로 프로그램 캐시 키를 분리한다
+  material.customProgramCacheKey = () => (tx ? 'lowpoly-tex' : 'lowpoly');
   material.onBeforeCompile = (shader) => {
+    if (texUniforms) Object.assign(shader.uniforms, texUniforms);
     shader.uniforms.uDesat = desat;
     shader.uniforms.uSelfGlow = glow;
     shader.uniforms.uRimColor = rimColor;
@@ -87,8 +115,21 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
         uniform float uRimPower;
         uniform vec4 uRegions[${DESAT_MAX_REGIONS}];
         uniform vec4 uFogH;
-        uniform vec3 uFogHColor;`)
+        uniform vec3 uFogHColor;${tx ? `
+        uniform sampler2D uTex;
+        uniform float uTexN, uTexLayers, uTexTop, uTexSide, uTexTile, uTexAmp;
+        uniform vec3 uTexGlow;
+        uniform vec3 uTexFade;` : ''}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
+        ${tx ? `// 저해상도 트리플래너: 평면 셰이딩이라 면 법선(월드 위치 미분)의 지배축 하나로만 투영한다. 픽셀 중심으로 스냅해 텍셀이 그대로 보인다
+        vec3 fnW = abs(normalize(cross(dFdx(vDesatPos), dFdy(vDesatPos))));
+        bool isTop = fnW.y > 0.7;
+        vec2 puv = (isTop ? vDesatPos.xz : vec2(fnW.x > fnW.z ? vDesatPos.z : vDesatPos.x, vDesatPos.y)) / uTexTile;
+        vec2 tc = (floor(fract(puv) * uTexN) + 0.5) / uTexN;
+        vec4 txl = texture2D(uTex, vec2(tc.x, ((isTop ? uTexTop : uTexSide) + tc.y) / uTexLayers));
+        float lpFade = smoothstep(uTexFade.x, uTexFade.y, distance(vDesatPos, cameraPosition));
+        diffuseColor.rgb *= 1.0 + (txl.rgb - 0.5) * 2.0 * uTexAmp * (1.0 - lpFade);
+        float lpGlow = mix(txl.a, uTexFade.z, lpFade * step(0.001, uTexGlow.x + uTexGlow.y + uTexGlow.z));` : ''}
         float dAmt = uDesat;
         for (int i = 0; i < ${DESAT_MAX_REGIONS}; i++) {
           vec4 rg = uRegions[i];
@@ -115,7 +156,8 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
           gl_FragColor.rgb = fogMixed;
         #endif`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-        totalEmissiveRadiance += diffuseColor.rgb * uSelfGlow;
+        totalEmissiveRadiance += diffuseColor.rgb * uSelfGlow;${tx ? `
+        totalEmissiveRadiance += uTexGlow * lpGlow;` : ''}
         if (uRimStrength > 0.0) {
           float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), uRimPower);
           totalEmissiveRadiance += uRimColor * (rimF * uRimStrength);

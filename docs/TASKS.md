@@ -41,8 +41,9 @@
 | A1 | 아트 Phase 1 Rendering Prototype (`OPEN_WORLD_ART_DIRECTION.md` §24) — M1g·M1i 로 충족 | done |
 | A2 | 아트 Phase 2 Terrain: 계단형 하이트필드 지형(절벽·계곡), 셰이더 높이 안개, 3D 원경 산, 게임플레이 구조 유지 (`docs/TERRAIN.md`). 남은 것: 목표 이미지급 디테일(아치·폭포·건축물, Phase 4·5), 고원 안 기복 | done |
 | G0 | 그래픽 기준 v2 확정(문서): 키워드 11항목 현황·결정(G1~G11), 색 역할표, C8 완화 — `OPEN_WORLD_ART_DIRECTION.md` §0 | done |
-| G3 | 저해상도 절차 텍스처 파이프라인(`render/textures.ts`, `createMaterial` map 옵션, NearestFilter) | todo |
-| G9 | 청록 발광 기술 패스(장식 정적·약함 / 단서 밝음+맥동, 탈색 연동, 수치 설정화) | todo |
+| G3 | 저해상도 절차 텍스처(`render/texKit.ts` 아틀라스, `createMaterial` `tex` 옵션: 월드 좌표 트리플래너·Nearest·원거리 페이드) | done |
+| G9 | 청록 발광 기술(회로선 발광 마스크 = 장식 정적, 전도체 맥동, 수치 `VISUAL.lowpoly.tech`) | done |
+| G5 | 모듈 키트 부분(`world/techModules.ts` 기둥·아치·벽·링, 고원 바깥 시각 전용). 건축 확장은 A4 | doing |
 | A3 | 아트 Phase 3 World Streaming (C5: 맵이 3×3 청크를 넘을 때) | todo |
 | A4~A8 | 아트 Phase 4 Environment · 5 Landmark · 6 Character 보강 · 7 Interaction · 8 Final Art Pass (C10: M2 통과 후 4 착수) | todo |
 | M1(b) | todo | todo |
