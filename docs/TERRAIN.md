@@ -1,6 +1,6 @@
 # 지형 (A2: 계단형 하이트필드 + 셰이더 높이 안개)
 
-`OPEN_WORLD_ART_DIRECTION.md` §24 Phase 2 구현 설명. 'lowpoly' 스타일 전용 ('ps1' 은 동결: 옛 평지 박스 + 평원 띠 그대로).
+`OPEN_WORLD_ART_DIRECTION.md` §24 Phase 2 구현 설명. (PS1 프리셋은 삭제됨).
 
 ## 구도
 

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
-import { createBoxGeometryWithUV } from './boxGeometry';
+import { segmentedBox } from './boxGeometry';
 
 /**
  * 로우폴리 정점색: 텍스처 없이 면에 명도 변화를 준다.
@@ -58,7 +58,7 @@ export function applyBoxTint(geo: THREE.BufferGeometry, center: readonly [number
 
 /** 로우폴리 박스: maxSegment(m) 이하로 분할하고 정점색을 입혀 월드 위치로 옮긴다 (플랫 셰이딩은 재질이 담당) */
 export function lowpolyBox(pos: readonly [number, number, number], size: readonly [number, number, number], maxSegment: number) {
-  const geo = createBoxGeometryWithUV(size[0], size[1], size[2], 1e9, maxSegment);
+  const geo = segmentedBox(size[0], size[1], size[2], maxSegment);
   applyBoxTint(geo, pos);
   geo.translate(pos[0], pos[1], pos[2]);
   return geo;

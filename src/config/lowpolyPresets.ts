@@ -47,9 +47,6 @@ export interface LowpolyPreset {
     depthTint: { color: number; amount: number; depth: number; darken: number; wall: number };
     farTint: { color: number; from: number; to: number; amount: number };
   };
-  /** 지평선 쪽 원경 색 (맵 데이터 landmarks 의 시간대별 색 선택) */
-  landmarkKey: 'lowColor' | 'duskColor';
-  /** 랜드마크 모서리 보랏빛 대기 원근 대신 쓰는 단색 변화량 */
   character: { exposure: number; selfGlow: Vec3T; rim: { color: number; strength: number; power: number } };
   blob: { radius: number; opacity: number; color: number; maxDrop: number; minScale: number; fadeHeight: number };
   decor: {
@@ -99,7 +96,6 @@ export const LP_DAY: LowpolyPreset = {
     depthTint: { color: 0xa8c4de, amount: 0.3, depth: 40, darken: 0.12, wall: 0.95 },
     farTint: { color: 0xb8d4ea, from: 160, to: 420, amount: 0.4 },
   },
-  landmarkKey: 'lowColor',
   character: { exposure: 0.72, selfGlow: [0.55, 0.44, 0.3], rim: { color: 0xcfe6ff, strength: 0.34, power: 3.2 } },
   blob: { radius: 0.5, opacity: 0.32, color: 0x24324d, maxDrop: 40, minScale: 0.45, fadeHeight: 12 },
   decor: {
@@ -153,7 +149,6 @@ export const LP_DUSK: LowpolyPreset = {
     depthTint: { color: 0x3a3f72, amount: 0.5, depth: 38, darken: 0.4, wall: 0.72 },
     farTint: { color: 0x5a4a8c, from: 160, to: 420, amount: 0.45 },
   },
-  landmarkKey: 'duskColor',
   // 림은 호박색 태양 쪽 역광 (스폰에서 북쪽을 볼 때 해가 앞쪽이라 캐릭터 가장자리가 호박색으로 빛난다)
   character: { exposure: 0.8, selfGlow: [0.45, 0.3, 0.24], rim: { color: 0xffb066, strength: 0.62, power: 2.6 } },
   blob: { radius: 0.5, opacity: 0.4, color: 0x251c44, maxDrop: 40, minScale: 0.45, fadeHeight: 12 },

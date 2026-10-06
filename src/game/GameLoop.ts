@@ -3,7 +3,7 @@ import { createPhysics } from '../core/physics';
 import { Input } from '../core/input';
 import { PlayerController } from '../player/PlayerController';
 import { createPipeline } from '../render/pipeline';
-import { ENV, isPS1 } from '../render/style';
+import { ENV } from '../render/style';
 import { BlobShadow } from '../render/blobShadow';
 import { GameWorld } from '../world/GameWorld';
 import { Throwables } from '../world/Throwables';
@@ -28,7 +28,7 @@ import { createPlayerCharacter } from '../player/CharacterModel';
  */
 export async function startGame(root: HTMLElement) {
   const world = await createPhysics();
-  const renderer = new THREE.WebGLRenderer({ antialias: !isPS1 && PERF.antialias, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: PERF.antialias, powerPreference: 'high-performance' });
   const gfx = createPipeline(renderer);
   root.appendChild(renderer.domElement);
 
@@ -53,7 +53,7 @@ export async function startGame(root: HTMLElement) {
   const followCam = new ThirdPersonCamera(camera, world, player);
   const avatar = new PlayerAvatar(scene, player, followCam, createPlayerCharacter());
   avatar.snap();
-  const blob = isPS1 ? null : new BlobShadow(scene, world, player.body);
+  const blob = new BlobShadow(scene, world, player.body);
 
   let mobs: MobManager;
   const projectiles = new Projectiles(scene, world, player.body, () => mobs.targets());

@@ -60,7 +60,7 @@ describe('정점색 노이즈', () => {
 });
 
 describe('로우폴리 팔레트', () => {
-  it('기능색은 PS1 팔레트와 동일 (게임 규칙 직결)', () => {
+  it('기능색 고정 (게임 규칙 직결)', () => {
     expect(COL.cyan).toBe(0x6fc4c0);
     expect(COL.amber).toBe(0xd89a2e);
     expect(COL.green).toBe(0x7fbf6a);

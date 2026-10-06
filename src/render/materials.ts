@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import { DESAT_MAX_REGIONS, type DesatRegion } from './desat';
-import { patchRetro } from './snap';
-import { isPS1, LP } from './style';
+import { LP } from './style';
 
 // 색을 코드에서 쓴 그대로 출력 (조명·안개 계산을 단순하게). Color 생성보다 먼저 설정해야 한다.
 THREE.ColorManagement.enabled = false;
@@ -19,8 +18,6 @@ export interface MaterialOpts {
   vertexColors?: boolean;
   /** 이 재질만의 탈색 0~1 (로우폴리). setMaterialDesaturation 으로 런타임 변경 */
   desaturate?: number;
-  /** 'ps1' 에서도 정점색을 쓴다 (주인공처럼 정점색이 본체인 모델용). 월드 박스는 ps1 에서 정점색을 쓰지 않으므로 기본 false */
-  alwaysVertexColors?: boolean;
   /** (로우폴리) 알베도 × 이 색을 자체 발광으로 더한다: 그늘 면에서도 색이 살게 (조명 무관, 알베도에 비례하는 따뜻한 보정광) */
   selfGlow?: readonly [number, number, number];
   /** (로우폴리) 림 라이트: 시선과 비스듬한 가장자리에 더하는 얇은 역광 효과. color 0xRRGGBB, strength 0..1, power 지수(클수록 얇음) */
@@ -126,19 +123,14 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
   };
 }
 
-/**
- * 모든 메시의 기본 재질 팩토리 (스타일 분기점 하나). Lambert + flatShading.
- * - 'lowpoly': 정점 스냅 없음, 텍스처는 쓰지 않거나 단색/정점색, 탈색 파라미터(재질·지역) 지원
- * - 'ps1': 정점 스냅(patchRetro) 패치 (이전 파이프라인, 롤백용)
- */
+/** 모든 메시의 기본 재질 팩토리. Lambert + flatShading + 탈색·높이 안개·selfGlow·rim 패치 */
 export function createMaterial(color: number, o: MaterialOpts = {}) {
   const m = new THREE.MeshLambertMaterial({
     color, flatShading: true, emissive: o.emissive ?? 0x000000, fog: o.fog ?? true,
     ...(o.map ? { map: o.map } : {}), // map: undefined 를 넘기면 three 가 경고한다
     ...(o.emissiveMap ? { emissiveMap: o.emissiveMap } : {}),
-    ...(o.vertexColors && (!isPS1 || o.alwaysVertexColors) ? { vertexColors: true } : {}),
+    ...(o.vertexColors ? { vertexColors: true } : {}),
   });
-  if (isPS1) patchRetro(m);
-  else patchLowpoly(m, { value: o.desaturate ?? 0 }, o);
+  patchLowpoly(m, { value: o.desaturate ?? 0 }, o);
   return m;
 }

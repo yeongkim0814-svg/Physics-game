@@ -5,11 +5,9 @@ import { MAP, type BlockDef, type BlockKind } from '../data/map';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { COL, CUES } from '../render/palette';
 import { createMaterial } from '../render/materials';
-import { createBoxGeometryWithUV } from '../render/boxGeometry';
-import { floorTexture, metalTexture, skyTexture, waterTexture, wallTexture } from '../render/textures';
 import { lowpolyBox } from '../render/tint';
 import { DaySky } from '../render/daySky';
-import { isPS1, LP } from '../render/style';
+import { LP } from '../render/style';
 import { Backdrop } from '../render/backdrop';
 import { buildBlockMesh, type BoxSpec, type FaceKey, type MeshData, type PaletteKey, type TerrainLook } from './blockTerrain';
 import { Atmosphere } from './atmosphere';
@@ -52,27 +50,23 @@ class ConductorNode implements Conductor {
 
 /** 맵 데이터(data/map.ts)로 지형·충돌·전도체를 만든다 */
 export class GameWorld {
-  /** 'ps1' 전용: 맵 밖 평원의 윗면 높이와 한 변 길이 (시각 전용). 'lowpoly' 는 하이트필드가 대신한다 */
-  private static readonly PLAIN_Y = -0.4;
-  private static readonly PLAIN_SIZE = 700; // 중심에서 가장자리까지
   readonly conductors: Conductor[] = [];
   readonly spawn = new THREE.Vector3(...MAP.spawn);
   readonly mobSpawns = MAP.mobSpawns;
   private flashers: Flasher[] = [];
   private tmpDim = (c: number, k: number) => new THREE.Color(c).multiplyScalar(k);
-  /** 'lowpoly' 낮 하늘 (ps1 에서는 null) */
   private daySky: DaySky | null = null;
   /** 황혼 원경 백드롭·분위기 소품 (빛기둥·창문·파편·안개 면) */
   private backdrop: Backdrop | null = null;
   private atmosphere: Atmosphere | null = null;
-  /** 'lowpoly' 블록 지형: 정점색 모자이크 메시용 박스 목록 (하나의 드로우콜로 합친다) */
+  /** 블록 지형: 정점색 모자이크 메시용 박스 목록 (하나의 드로우콜로 합친다) */
   private terrainSpecs: BoxSpec[] = [];
   private terrainMat: THREE.Material | null = null;
-  /** 'lowpoly' 하이트필드 지형 (A2). ps1 에서는 null (옛 평지 박스 + 평원) */
+  /** 하이트필드 지형 (A2) */
   terrainField: TerrainField | null = null;
   /** 지형 생성 통계 (로딩 지연·삼각형 수 보고용) */
   terrainStats = { fieldMs: 0, meshMs: 0, collisionMs: 0, renderTris: 0, collisionTris: 0, collisionVerts: 0 };
-  /** 같은 재질을 쓰는 정적 박스는 하나의 메시로 합친다 ('lowpoly' 전용, 드로우콜 절감) */
+  /** 같은 재질을 쓰는 정적 박스는 하나의 메시로 합친다 (드로우콜 절감) */
   private batches = new Map<THREE.Material, THREE.BufferGeometry[]>();
   private concreteMat: THREE.Material | null = null;
 
@@ -84,11 +78,9 @@ export class GameWorld {
     this.buildWater();
     this.buildTerrainExtras();
     this.flushBatches();
-    if (!isPS1) {
-      this.flushTerrain();
-      buildDecor(scene, this.terrainField!);
-      if (this.backdrop || LP.features.beam || LP.features.debris || LP.features.windows) this.atmosphere = new Atmosphere(scene);
-    }
+    this.flushTerrain();
+    buildDecor(scene, this.terrainField!);
+    if (this.backdrop || LP.features.beam || LP.features.debris || LP.features.windows) this.atmosphere = new Atmosphere(scene);
   }
 
   /** 카메라를 따라가는 하늘(돔·해·구름)·백드롭 갱신, 분위기 소품 애니메이션. 렌더 직전 매 프레임 호출 */
@@ -98,7 +90,7 @@ export class GameWorld {
     this.atmosphere?.update(dt);
   }
 
-  /** 지형 박스를 모자이크 빌더 목록에 추가 (lowpoly) */
+  /** 지형 박스를 모자이크 빌더 목록에 추가 */
   private terrain(pos: [number, number, number], size: [number, number, number], palette: PaletteKey, tile: number, faces?: Partial<Record<FaceKey, boolean>>, mossScale?: number) {
     this.terrainSpecs.push({ pos, size, palette, tile, faces, mossScale });
   }
@@ -134,7 +126,7 @@ export class GameWorld {
 
   /** 시각 전용 지형 소품: 협곡 벽 돌출 (황혼). 맵 밖 메사는 하이트필드(massifs)가 대신한다 */
   private buildTerrainExtras() {
-    if (isPS1 || !LP.features.ledges) return;
+    if (!LP.features.ledges) return;
     const T = VISUAL.lowpoly.terrain, zc = (MAP.canyon.zMin + MAP.canyon.zMax) / 2;
     for (const l of MAP.ledgeParts) {
       const southWall = l.pos[2] > zc; // 남쪽 벽(z 큰 쪽)에서 북쪽(-z)으로 돌출하면 앞면 = nz
@@ -151,19 +143,10 @@ export class GameWorld {
     for (const f of this.flashers) f.update(dt);
   }
 
-  /**
-   * 박스 하나 (충돌 + 비주얼). 'lowpoly' 는 정점색 박스를 segment(m) 단위로 분할하고, batch 면 같은 재질끼리 합쳐 flushBatches 에서 한 번에 그린다.
-   * 'ps1' 은 기존대로 UV 타일 박스를 개별 메시로 둔다.
-   */
+  /** 박스 하나 (충돌 + 비주얼). 정점색 박스를 segment(m) 단위로 분할하고, batch 면 같은 재질끼리 합쳐 flushBatches 에서 한 번에 그린다 */
   private box(pos: [number, number, number], size: [number, number, number], mat: THREE.Material, collide = true, visual = true, segment: number = VISUAL.lowpoly.tint.segment) {
     if (collide) addStaticBox(this.physics, pos, size);
     if (!visual) return null;
-    if (isPS1) {
-      const m = new THREE.Mesh(createBoxGeometryWithUV(...size), mat);
-      m.position.set(...pos);
-      this.scene.add(m);
-      return m;
-    }
     const geo = lowpolyBox(pos, size, segment);
     const list = this.batches.get(mat);
     if (list) { list.push(geo); return null; }
@@ -173,7 +156,7 @@ export class GameWorld {
 
   /** 재질을 배치 대상으로 등록 (이후 box() 의 지오메트리가 이 재질로 모인다) */
   private batched(mat: THREE.Material) {
-    if (!isPS1 && !this.batches.has(mat)) this.batches.set(mat, []);
+    if (!this.batches.has(mat)) this.batches.set(mat, []);
     return mat;
   }
 
@@ -189,29 +172,17 @@ export class GameWorld {
 
   private buildGround() {
     const S = MAP.size, H = MAP.wallHeight;
-    const T0 = VISUAL.lowpoly.tint;
-    const floorMat = this.batched(isPS1
-      ? createMaterial(0xffffff, { map: floorTexture() })
-      : createMaterial(COL.sand, { vertexColors: true }));
-    if (isPS1) {
-      for (const g of MAP.ground) this.box(g.pos, g.size, floorMat, true, true, T0.groundSegment);
-      // 맵 밖 평원: 보이기만 한다 (안개가 지평선을 지운다). 협곡을 덮지 않게 맵 바깥 띠 4개로 깔고, 지면보다 살짝 낮춘다
-      const e = S / 2 + MAP.groundMargin, P = GameWorld.PLAIN_SIZE, T = MAP.groundThickness, py = GameWorld.PLAIN_Y - T / 2;
-      const strip = (cx: number, cz: number, sx: number, sz: number) => this.box([cx, py, cz], [sx, T, sz], floorMat, false, true, T0.farSegment);
-      strip(0, -(e + P) / 2, P * 2, P - e); strip(0, (e + P) / 2, P * 2, P - e);
-      strip(-(e + P) / 2, 0, P - e, e * 2); strip((e + P) / 2, 0, P - e, e * 2);
-    } else {
-      // 로우폴리: 계단형 하이트필드 (고원·협곡·고원 바깥 계곡/메사/산맥). 충돌 = 렌더와 일치하는 정적 trimesh (외곽 벽 안쪽만), 원거리 링은 시각 전용
-      const field = createTerrainField(TERRAIN_FIELD, { canyon: MAP.canyon, ...MAP.terrain });
-      this.terrainField = field;
-      this.terrainStats.fieldMs = field.buildMs;
-      const t0 = performance.now();
-      const cm = buildCollisionMesh(field, TERRAIN_COLLISION.half);
-      addStaticTrimesh(this.physics, cm.vertices, cm.indices);
-      this.terrainStats.collisionMs = performance.now() - t0;
-      this.terrainStats.collisionTris = cm.indices.length / 3;
-      this.terrainStats.collisionVerts = cm.vertices.length / 3;
-    }
+    const floorMat = this.batched(createMaterial(COL.sand, { vertexColors: true }));
+    // 계단형 하이트필드: 고원·협곡·고원 바깥 계곡/메사/산맥. 충돌 = 렌더와 일치하는 정적 trimesh (외곽 벽 안쪽만), 원거리 링은 시각 전용
+    const field = createTerrainField(TERRAIN_FIELD, { canyon: MAP.canyon, ...MAP.terrain });
+    this.terrainField = field;
+    this.terrainStats.fieldMs = field.buildMs;
+    const t0 = performance.now();
+    const cm = buildCollisionMesh(field, TERRAIN_COLLISION.half);
+    addStaticTrimesh(this.physics, cm.vertices, cm.indices);
+    this.terrainStats.collisionMs = performance.now() - t0;
+    this.terrainStats.collisionTris = cm.indices.length / 3;
+    this.terrainStats.collisionVerts = cm.vertices.length / 3;
     // 외곽 충돌 벽 (렌더 안 함: 원경 랜드마크가 가려지지 않게)
     const hs = S / 2 + 0.5;
     const wall = floorMat;
@@ -221,55 +192,20 @@ export class GameWorld {
     this.box([hs, H / 2, 0], [1, H, S], wall, true, false);
   }
 
-  /**
-   * 하늘 + 원경 랜드마크. 'ps1': 노을 돔+별+달, 랜드마크는 안개 무시 발광 실루엣(밑동 탈색).
-   * 'lowpoly': 낮 하늘 돔+해+구름, 랜드마크는 안개 원근을 받는 일반 재질(밑동 띠는 탈색 파라미터 데모).
-   */
+  /** 하늘 돔·해·구름 + 원경 백드롭. 원경 산맥은 하이트필드가 맡는다 */
   private buildSky() {
-    if (isPS1) return this.buildSkyPS1();
     this.daySky = new DaySky(this.scene);
     if (LP.features.backdrop) this.backdrop = new Backdrop(this.scene);
-    // 원경은 백드롭(황혼) + 하이트필드 산맥이 맡는다 (A2). 옛 박스 실루엣(MAP.landmarks)은 'ps1' 전용으로만 남는다
-  }
-
-  private buildSkyPS1() {
-    // 하늘 돔: 절차 그라디언트(위 남보라 → 지평선 호박)+별+구름. 안개·깊이 무시, 카메라를 따라다니며 항상 맨 뒤에 그린다
-    const sd = VISUAL.lighting.sunDir;
-    const sunAz = Math.atan2(sd[2], -sd[0]); // SphereGeometry 의 u(방위) 규약: 방향 (x,z) = (-cos φ, sin φ)
-    const skyMat = createMaterial(0x000000, { emissive: 0xffffff, emissiveMap: skyTexture(sunAz, VISUAL.fog.color), fog: false });
-    skyMat.side = THREE.BackSide;
-    skyMat.depthTest = false;
-    skyMat.depthWrite = false;
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(VISUAL.sky.radius, 32, 16), skyMat);
-    dome.renderOrder = -1000;
-    dome.frustumCulled = false;
-    dome.onBeforeRender = (_r, _s, cam) => dome.position.copy(cam.position);
-    this.scene.add(dome);
-    const flat = (color: number) => createMaterial(0x000000, { emissive: color, fog: false });
-    for (const l of MAP.landmarks) {
-      this.box(l.pos, l.size, flat(l.color), false);
-      if (l.band) {
-        const bs: [number, number, number] = [l.size[0] + 0.6, l.band.height, l.size[2] + 0.6];
-        this.box([l.pos[0], l.pos[1] - l.size[1] / 2 + l.band.height / 2, l.pos[2]], bs, flat(l.band.color), false);
-      }
-    }
-    const moon = new THREE.Mesh(new THREE.IcosahedronGeometry(MAP.moon.radius, 1), flat(MAP.moon.color));
-    moon.position.set(...MAP.moon.pos);
-    this.scene.add(moon);
   }
 
   /** 종류별 재질. 금속은 구조물마다 따로 만들어 개별로 번쩍이게 한다 */
   private blockMaterial(kind: BlockKind) {
     if (kind === 'concrete') {
-      this.concreteMat ??= this.batched(isPS1
-        ? createMaterial(0xffffff, { map: wallTexture(false) })
-        : createMaterial(COL.stone, { vertexColors: true }));
+      this.concreteMat ??= this.batched(createMaterial(COL.stone, { vertexColors: true }));
       return { mat: this.concreteMat, flasher: null };
     }
-    const emissive = this.tmpDim(CUES.conductor, isPS1 ? 0.28 : VISUAL.lowpoly.conductorGlow);
-    const mat = isPS1
-      ? createMaterial(0xffffff, { map: metalTexture(), emissive: emissive.getHex() })
-      : createMaterial(COL.copper, { vertexColors: true, emissive: emissive.getHex() });
+    const emissive = this.tmpDim(CUES.conductor, VISUAL.lowpoly.conductorGlow);
+    const mat = createMaterial(COL.copper, { vertexColors: true, emissive: emissive.getHex() });
     const flasher = new Flasher([mat], emissive);
     this.flashers.push(flasher);
     return { mat, flasher };
@@ -279,7 +215,7 @@ export class GameWorld {
     const TT = VISUAL.lowpoly.terrain.tile;
     const place = (b: BlockDef) => {
       const { mat, flasher } = this.blockMaterial(b.kind);
-      if (!isPS1 && b.kind === 'concrete') {
+      if (b.kind === 'concrete') {
         addStaticBox(this.physics, b.pos, b.size);
         this.terrain(b.pos, b.size, b.look ?? 'rock', TT.block, undefined, b.moss);
       } else this.box(b.pos, b.size, mat);
@@ -303,7 +239,7 @@ export class GameWorld {
       const sides: FaceKey[] = alongX ? ['pz', 'nz'] : ['px', 'nx'];
       const parts = stairBlocks(s);
       parts.forEach((p, i) => {
-        if (!isPS1 && s.kind === 'concrete') {
+        if (s.kind === 'concrete') {
           addStaticBox(this.physics, p.pos, p.size);
           const faces: Partial<Record<FaceKey, boolean>> = { py: true, px: false, nx: false, pz: false, nz: false, [riser]: true, [sides[0]]: true, [sides[1]]: true, [back]: i === parts.length - 1 };
           this.terrain(p.pos, p.size, 'rock', TT.stair, faces, 0.6);
@@ -317,9 +253,7 @@ export class GameWorld {
   private buildWater() {
     for (const w of MAP.water) {
       const emissive = this.tmpDim(CUES.conductor, 0.3);
-      const mat = isPS1
-        ? createMaterial(0xffffff, { map: waterTexture(), emissive: emissive.getHex() })
-        : createMaterial(COL.verdigris, { vertexColors: true, emissive: emissive.getHex() });
+      const mat = createMaterial(COL.verdigris, { vertexColors: true, emissive: emissive.getHex() });
       const flasher = new Flasher([mat], emissive);
       this.flashers.push(flasher);
       this.box([w.center[0], WATER_Y / 2, w.center[1]], [w.size[0], WATER_Y, w.size[1]], mat, false);

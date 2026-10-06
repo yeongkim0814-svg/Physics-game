@@ -2,54 +2,9 @@
 import { LP_DAY, LP_DUSK } from './lowpolyPresets';
 
 export const VISUAL = {
-  /**
-   * 비주얼 프리셋 (2026-10-06 변경). 'lowpoly' = 로우폴리(기본, 네이티브 해상도·플랫 셰이딩. 시간대는 lowpoly.timeOfDay: 'dusk' 황혼 블록 룩 기본 / 'day' BotW풍 낮),
-   * 'ps1' = 이전 PS1풍(저해상도 타깃·정점 스냅·디더·석양, 롤백/비교용). 개발 중에는 URL `?style=ps1|lowpoly` 로 덮어쓸 수 있다.
-   * 아래 `lowpoly` 블록은 'lowpoly' 전용, 그 외 fog/lighting/sky/post/internalHeight/vertexSnap/texture* 는 'ps1' 전용 수치다.
-   */
-  style: 'lowpoly' as 'lowpoly' | 'ps1',
   fov: 75,
-  /** 내부 렌더 해상도(세로). 가로는 화면 비율로 결정 (270 → 16:9 에서 480×270). 낮출수록 거칠고 빠르다 */
-  internalHeight: 270,
-  minInternalHeight: 160,
-  camera: { near: 0.1, far: 500 }, // far 는 안개 너머 원경 랜드마크·달이 보이도록 길게
-  /** 정점 스냅: 정점을 내부 픽셀 격자(snapPixels 배수)에 맞춰 PS1 특유의 떨림 */
-  vertexSnap: true,
-  snapPixels: 1,
-  /** 절차 생성 텍스처 한 변 픽셀 수 (16~64). 벽돌/타일 패턴이 읽히는 최소 해상도는 64 / 텍스처 1타일이 덮는 월드 길이(m) */
-  textureSize: 64,
-  textureTileMeters: 2,
-  /** 지형 박스를 이 크기(m) 이하 조각으로 분할 (정점 스냅이 큰 폴리곤 텍스처를 흔드는 것 방지) */
-  maxPolySize: 8,
-  /** 후처리 5단계 (PERF.postprocess 로 전체 on/off). 강도는 여기서 튜닝 */
-  post: {
-    edge: 0.62, edgeLo: 0.09, edgeHi: 0.22, // 깊이 윤곽선: 어두워지는 정도 / smoothstep 임계값
-    saturation: 1.05,                       // 채도 유지 비율 (1 이상 = 선명). 색이 정보이므로 높게
-    contrast: 1.15,
-    tint: [1.0, 0.97, 0.92] as [number, number, number], // 약한 따뜻한 석양 색조
-    black: 0.1,                           // 검정 최소값 (완전한 검정 방지)
-    vignette: 0.3,
-    grain: 0.01,                            // 프레임마다 변하는 그레인
-    grainSpeed: 12,
-    scanline: 0.05,
-    levels: 16,                             // 채널당 양자화 단계 (4x4 바이어 디더)
-  },
-  /** 지평선 호박빛 = 안개색 = 배경색(하늘 돔은 지평선 색과 이 색을 맞춘다). 멀리 갈수록 이 색에 잠긴다 */
-  fog: { color: 0xd9946a, near: 30, far: 150 },
-  /** 절차 하늘(render/textures.ts skyTexture): 돔 반지름은 카메라 far 안쪽, 깊이 무시로 항상 맨 뒤에 그린다 */
-  sky: {
-    radius: 400, texWidth: 512, texHeight: 256,
-    gradientPower: 0.62,     // 지평선→천정 색 분포 (작을수록 호박/노을 띠가 두꺼움)
-    glowPower: 3, glowAmount: 0.55, // 태양 방위의 노을 번짐: cos^power, 최대로 끌어올리는 비율
-    starCount: 110, starMinElev: 0.25, starMaxSin: 0.96, // 별 개수 / 최소 고도(rad) / 최대 고도의 sin (천정 바로 위 늘어남 방지)
-    cloudCount: 8, cloudRows: 3, cloudWidth: 90, cloudBandLo: 0.12, cloudBandHi: 0.42, // 구름 개수/폭(px)/고도 범위(0~1)
-  },
-  /** 차가운 보랏빛 환경광(그늘) 대 따뜻한 호박빛 태양(양지) 대비. 태양은 낮게 깔려 벽면마다 명암이 갈린다 */
-  lighting: {
-    ambient: 0x7488ee, ambientGround: 0x6c5268, ambientIntensity: 1.9, // 위쪽 면=차가운 하늘색, 아래쪽 면=따뜻한 바닥 반사
-    sun: 0xffa24a, sunIntensity: 3.5, sunDir: [0.8, 0.3, 0.45] as [number, number, number], sunDistance: 40,
-  },
-  /** 'lowpoly' 프리셋 전용 (BotW 풍 밝은 낮 + 대기 원근). 색은 0xRRGGBB, 길이는 m */
+  camera: { near: 0.1, far: 500 }, // far 는 안개 너머 원경이 보이도록 길게
+  /** 로우폴리 렌더 수치. 색은 0xRRGGBB, 길이는 m */
   lowpoly: {
     /** 시간대 프리셋 (M1i). 기본 'dusk' = 영원한 황혼(목표 이미지), 'day' = 이전 BotW풍 낮(보관). URL `?tod=day|dusk` 로 덮어쓸 수 있다 */
     timeOfDay: 'dusk' as 'dusk' | 'day',
@@ -114,9 +69,8 @@ export const VISUAL = {
     aoCurve: [0.6, 0.74, 0.88, 1] as [number, number, number, number],
     /** AO 를 면 단위(꼭짓점 평균)로 통일: 같은 색 면의 병합이 늘어 삼각형이 크게 준다. false = 꼭짓점별(부드럽지만 약 2배 삼각형) */
     aoPerFace: true,
-    /** 정점색 배율 = 시간대 프리셋 character.exposure × 이 값 (도면 색은 이미 때 탄 어두운 톤이라 legacy 보다 높게). 'ps1' 은 selfGlow/rim 이 없어 따로 둔다 */
+    /** 정점색 배율 = 시간대 프리셋 character.exposure × 이 값 (도면 색은 이미 때 탄 어두운 톤이라 legacy 보다 높게). */
     exposureScale: 1.19,
-    ps1Exposure: 1,
     /** 도면의 직립 자세에 맞춘 기본 자세 덮어쓰기 (공통 character 값 위에 얹는다) */
     pose: { restLean: 0.03, kneeRest: 0.04, armRestOut: 0, leftElbowRest: 0.1, leftArmRest: 0.0, restArm: 0.15, weaponElbowRest: 0.25 },
     /** 조준 시 도면의 바깥 기울기를 상쇄하는 비율 (팔이 앞으로 곧게 뻗게) 과 그 보간 속도(1/s) */
@@ -162,7 +116,6 @@ export const VISUAL = {
     look: {
       faceJitter: 0.045,   // 면마다 미세 명도 변화 (패싯 느낌) ± 비율
       seed: 11,            // 면 지터 시드
-      ps1Emissive: 0x2a2420, // 'ps1' 프리셋: 정점색과 무관한 약한 단색 자체 발광 (보랏빛 그늘에서 크림이 죽지 않게)
       fabricTile: 0.36,    // 천 텍스처 한 장이 덮는 길이 (m)
       fabricSize: 128,     // 천 텍스처 한 변 (px, 타일링)
     },
@@ -173,9 +126,9 @@ export const VISUAL = {
 
 export const PERF = {
   mobCap: 12,
-  /** 'lowpoly' 전용: 렌더 해상도 = CSS 크기 × min(devicePixelRatio, 이 값). 태블릿 성능 상한 */
+  /** 렌더 해상도 = CSS 크기 × min(devicePixelRatio, 이 값). 태블릿 성능 상한 */
   maxPixelRatio: 1.5,
-  antialias: true, // 'lowpoly' 전용 MSAA (outline 후처리를 켜면 렌더 타깃에는 적용 안 됨)
+  antialias: true, // MSAA (outline 후처리를 켜면 렌더 타깃에는 적용 안 됨)
   postprocess: true,
   showFps: false,
   /** FPS 가 낮으면 내부 해상도를 자동으로 낮춘다 */

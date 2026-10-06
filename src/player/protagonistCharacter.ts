@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createMaterial } from '../render/materials';
-import { isPS1, LP } from '../render/style';
+import { LP } from '../render/style';
 import { VISUAL } from '../config/settings';
 import { JOINTS } from '../data/protagonist';
 import { followFactor } from './cameraMath';
@@ -13,17 +13,15 @@ import { fabricTexture, faceTexture } from './protagonistTextures';
 const V = VISUAL.character;
 const R = LP.character;
 
-/** 렌더 재질 3종: 천(텍스처×정점색) / 단색 정점색 / 얼굴 텍스처. 로우폴리는 셰이더 보정(selfGlow·rim), ps1 은 약한 단색 emissive */
+/** 렌더 재질 3종: 천(텍스처×정점색) / 단색 정점색 / 얼굴 텍스처. 셰이더 보정(selfGlow·rim) */
 function makeMaterials() {
-  const common = isPS1
-    ? { emissive: V.look.ps1Emissive, alwaysVertexColors: true }
-    : { selfGlow: R.selfGlow, rim: R.rim, alwaysVertexColors: true };
-  const exposureGray = new THREE.Color().setScalar(isPS1 ? 1 : R.exposure).getHex();
+  const common = { selfGlow: R.selfGlow, rim: R.rim };
+  const exposureGray = new THREE.Color().setScalar(R.exposure).getHex();
   return {
     cloth: createMaterial(0xffffff, { map: fabricTexture(), vertexColors: true, ...common }),
     plain: createMaterial(0xffffff, { vertexColors: true, ...common }),
     // 얼굴: 정점색 없이 텍스처 그대로 (exposure 만 회색으로 곱한다)
-    face: createMaterial(exposureGray, { map: faceTexture(), ...(isPS1 ? { emissive: V.look.ps1Emissive } : { selfGlow: R.selfGlow, rim: R.rim }) }),
+    face: createMaterial(exposureGray, { map: faceTexture(), ...common }),
   };
 }
 
@@ -43,7 +41,7 @@ const joint = (parent: THREE.Object3D, x: number, y: number) => {
 export function protagonistCharacter(): CharacterModel {
   const J = JOINTS;
   const mats = makeMaterials();
-  const geo = buildProtagonistGeometry(isPS1 ? 1 : R.exposure);
+  const geo = buildProtagonistGeometry(R.exposure);
 
   const addGeo = (group: THREE.Object3D, g: GroupGeo) => {
     for (const k of ['cloth', 'plain', 'face'] as const) {

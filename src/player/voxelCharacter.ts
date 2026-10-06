@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import { createMaterial } from '../render/materials';
-import { isPS1, LP } from '../render/style';
+import { LP } from '../render/style';
 import { followFactor } from './cameraMath';
 import type { CharacterModel, CharacterState } from './CharacterModel';
 import { advancePhase, blendPose, footDrop, REST_POSE, targetPose } from './protagonistPose';
@@ -32,17 +32,14 @@ function toGeometry(m: MeshData): THREE.BufferGeometry {
  * 자세는 protagonistPose(걷기·공중·조준·반동·숨쉬기)를 재사용하고 자락(다리 추종)·천(사인파)을 더한다.
  */
 export function voxelCharacter(): CharacterModel {
-  const exposure = isPS1 ? V.ps1Exposure : R.exposure * V.exposureScale;
+  const exposure = R.exposure * V.exposureScale;
   const { nodes } = decodeAndBuild(VOXEL_FILE, { aoCurve: V.aoCurve, colorScale: exposure, aoPerFace: V.aoPerFace });
   const P = VOXEL_FILE.pivots;
 
-  const common = isPS1
-    ? { emissive: VISUAL.character.look.ps1Emissive, alwaysVertexColors: true }
-    : { selfGlow: R.selfGlow, rim: R.rim, alwaysVertexColors: true };
-  const bodyMat = createMaterial(0xffffff, { vertexColors: true, ...common });
+  const bodyMat = createMaterial(0xffffff, { vertexColors: true, selfGlow: R.selfGlow, rim: R.rim });
   // 화면: 정점색(청록) × 재질 + emissive. 안개 무시 (heldDevice 와 같은 규약)
   const cyan = new THREE.Color(V.screenColor);
-  const glowMat = createMaterial(0xffffff, { vertexColors: true, alwaysVertexColors: true, emissive: 0x000000, fog: false });
+  const glowMat = createMaterial(0xffffff, { vertexColors: true, emissive: 0x000000, fog: false });
   const setEmissive = (k: number) => glowMat.emissive.copy(cyan).multiplyScalar(k);
   setEmissive(V.idleGlow);
 

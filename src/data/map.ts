@@ -7,7 +7,6 @@ import type { BluffDef, MassifDef, RampDef, TerrainPad } from '../world/terrain/
  * 레이아웃은 코드 수정 없이 여기서 바꾼다. 월드 빌더(world/GameWorld.ts)가 읽는다.
  *
  * 구역(북쪽이 -z): 남쪽 스폰 평지 → 폐허 건물 블록 → 동서로 가로지르는 물 빠진 협곡(다리 잔해·계단) → 북쪽 높은 탑
- * 맵 밖 먼 곳에는 안개 너머 랜드마크 실루엣(landmarks)과 달이 있다.
  */
 export type BlockKind = 'concrete' | 'metal';
 /** look = 황혼 블록 지형의 팔레트 (기본 rock). moss = 이끼 확률 배율 */
@@ -15,20 +14,12 @@ export interface BlockDef { pos: Vec3; size: Vec3; kind: BlockKind; look?: 'rock
 export interface StairMapDef extends StairDef { kind: BlockKind }
 export interface WaterDef { center: [number, number]; size: [number, number] }
 export interface MobSpawnDef { kind: MobKind; pos: [number, number, number] }
-export interface GroundDef { pos: Vec3; size: Vec3 }
-/** 안개 무시 실루엣 (맵 밖 원경). band 는 밑동의 탈색 구간 */
-/** color/band.color = PS1 실루엣색(발광), lowColor/band.lowColor = 로우폴리 낮 색(안개 원근으로 청백색에 묻힌다), duskColor = 황혼 실루엣색(보라, 안개에 잠긴다) */
-export interface LandmarkDef { pos: Vec3; size: Vec3; color: number; lowColor: number; duskColor: number; band?: { height: number; color: number; lowColor: number; duskColor: number } }
 
 const C = (pos: Vec3, size: Vec3): BlockDef => ({ pos, size, kind: 'concrete' });
 
 // --- 협곡 (x 방향으로 맵 전체를 가로지른다) ---
 const HALF = 80;            // 맵 반 변 길이
-const MARGIN = 4;           // 지면 박스가 맵 밖으로 조금 더 뻗는 길이
-const EDGE = HALF + MARGIN;
 const CANYON = { zMin: -18, zMax: -4, depth: 14 };
-const CANYON_W = CANYON.zMax - CANYON.zMin;
-const SLAB = 15;            // 지면 박스 두께 (윗면 y=0 아래로). 협곡 깊이보다 커야 한다
 
 // --- 탑 (한 변 14m, 높이 30m). 바깥을 감싸는 4구간 계단으로 지붕까지 걸어서 오른다 ---
 const T = { x: -30, z: -52, w: 14, h: 30 };
@@ -110,17 +101,7 @@ export const MAP = {
   /** 한 변 길이. 외곽은 보이지 않는 충돌 벽(지평선을 가리지 않음) */
   size: HALF * 2,
   wallHeight: 80,
-  /** 지면 박스가 맵 밖으로 뻗는 길이 / 두께 (GameWorld 의 맵 밖 평원 띠가 쓴다) */
-  groundMargin: MARGIN,
-  groundThickness: SLAB,
   spawn: [0, 0.2, 52] as Vec3,
-
-  /** 지면 윗면 y=0 박스들 + 협곡 바닥. 협곡 폭 사이는 비워 둔다 */
-  ground: [
-    { pos: [0, -SLAB / 2, (CANYON.zMax + EDGE) / 2], size: [EDGE * 2, SLAB, EDGE - CANYON.zMax] },     // 남쪽 지면
-    { pos: [0, -SLAB / 2, (CANYON.zMin - EDGE) / 2], size: [EDGE * 2, SLAB, EDGE + CANYON.zMin] },     // 북쪽 지면
-    { pos: [0, -CANYON.depth - 0.5, (CANYON.zMin + CANYON.zMax) / 2], size: [EDGE * 2, 1, CANYON_W] }, // 협곡 바닥
-  ] as GroundDef[],
 
   blocks: [
     // --- 남쪽 폐허 건물 블록 ---
@@ -185,14 +166,4 @@ export const MAP = {
    * (VISUAL.lowpoly.backdrop.beaconAzimuthDeg 와 일치해야 한다 — 테스트). 안개 너머라 위치만 기록하고 메시는 없다.
    */
   destinations: [{ id: 'observatory', pos: [57, 120, -325] as Vec3, note: '관측소: 성 실루엣 정상의 빛기둥' }],
-
-  /** 지평선 위로 솟은 원경 실루엣. 안개를 무시하고 밑동만 탈색된 느낌 */
-  landmarks: [
-    { pos: [143, 35, -297], size: [26, 70, 22], color: 0x2b2750, lowColor: 0xd9c4a0, duskColor: 0x3a2f62, band: { height: 22, color: 0x8d8a96, lowColor: 0xe0a85a, duskColor: 0x6a5a8a } },
-    { pos: [-150, 40, -300], size: [30, 80, 20], color: 0x2f2b58, lowColor: 0xb7c3d6, duskColor: 0x40356a },
-    { pos: [-30, 18, -340], size: [60, 36, 16], color: 0x342f5e, lowColor: 0xcdb48e, duskColor: 0x4a3e72 },
-  ] as LandmarkDef[],
-
-  /** 하늘의 달 (크림색, 안개 무시, 'ps1' 전용. 낮 프리셋에서는 그리지 않는다) */
-  moon: { pos: [-120, 120, -380] as Vec3, radius: 14, color: 0xf2e3b8 },
 };

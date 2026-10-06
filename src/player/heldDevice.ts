@@ -3,7 +3,7 @@ import { DEVICE, PCOL } from '../data/protagonist';
 import { VISUAL } from '../config/settings';
 import { MeshBuilder, type V3 } from '../render/meshBuilder';
 import { createMaterial } from '../render/materials';
-import { isPS1, LP } from '../render/style';
+import { LP } from '../render/style';
 
 /**
  * 손에 든 휴대 장치: 청록 발광 표시가 있는 검은 태블릿형 소형 장치 (일러스트 DETAILS '휴대 장치').
@@ -33,7 +33,7 @@ export function createHeldDevice(): HeldDevice {
   add(dark, DEVICE.grip, PCOL.band);
   for (const spec of [DEVICE.strip, DEVICE.dot, DEVICE.emitter]) add(lit, spec, PCOL.cyan);
   group.add(new THREE.Mesh(dark.build(), createMaterial(0xffffff, {
-    vertexColors: true, alwaysVertexColors: true, ...(isPS1 ? { emissive: VISUAL.character.look.ps1Emissive } : { selfGlow: LP.character.selfGlow }),
+    vertexColors: true, selfGlow: LP.character.selfGlow,
   })));
   // 발광부: 정점색 × 재질 색(어두운 청록) + emissive(청록 × 밝기)
   const cyan = new THREE.Color(PCOL.cyan);

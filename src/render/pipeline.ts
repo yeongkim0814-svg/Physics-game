@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import { PERF, VISUAL } from '../config/settings';
-import { RetroPipeline } from './retro';
-import { isPS1 } from './style';
 
 /**
  * 렌더 파이프라인 공통 인터페이스. GameLoop 는 이것만 본다.
@@ -111,7 +109,6 @@ export class SimplePipeline implements RenderPipeline {
   }
 }
 
-/** 스타일에 맞는 파이프라인 */
 export function createPipeline(renderer: THREE.WebGLRenderer): RenderPipeline {
-  return isPS1 ? new RetroPipeline(renderer) : new SimplePipeline(renderer);
+  return new SimplePipeline(renderer);
 }

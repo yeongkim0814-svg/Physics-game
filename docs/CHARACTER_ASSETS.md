@@ -51,7 +51,7 @@ CLAUDE.md '외부 에셋 없음' 규칙의 **사용자 승인 예외**. 현재 �
 - `voxelMesher.ts`: 그룹별 **그리디 메싱**(같은 색 + 같은 AO 의 인접 면 병합), 정점색에 복셀 AO(코너 가림 0~3 → `VISUAL.voxelCharacter.aoCurve`) 를 굽는다. 기본은 면 단위 AO(`aoPerFace`): 꼭짓점별 AO 는 병합이 막혀 삼각형이 약 2배.
 - `voxelParts.ts`: 부위 → 관절 노드 트리 (waist → torso/head/팔(upper→fore→device), body → pelvis/skirtF·B/sashF·B/다리(thigh→shin→foot)). 노드 위치 = 피벗 - 부모 피벗.
 - `voxelPose.ts` + `protagonistPose.ts`: 걷기·공중·조준·반동·숨쉬기는 기존 `targetPose` 재사용(도면의 직립 자세에 맞춰 `VISUAL.voxelCharacter.pose` 로 일부 값 덮어쓰기), 자락은 다리 스윙을 `skirtFollow` 비율로 추종, 천 자락은 사인파(`sash`), 조준 시 도면의 팔 바깥 기울기를 상쇄.
-- 재질은 `createMaterial` 경유(정점색, lowpoly 는 selfGlow·rim, ps1 은 ps1Emissive). 화면 복셀은 별도 메시·재질(청록 emissive, 안개 무시) + `setGlow`.
+- 재질은 `createMaterial` 경유(정점색, selfGlow·rim). 화면 복셀은 별도 메시·재질(청록 emissive, 안개 무시) + `setGlow`.
 - 예산: 삼각형 ≤ 6,000, 드로우콜(메시) ≤ 20 — `src/player/voxel.test.ts` 가 검사한다 (현재 약 5,800 tri / 19 메시).
 
 ### 1-4. 알려진 한계 (72칸 해상도)
