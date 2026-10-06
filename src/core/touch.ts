@@ -28,7 +28,7 @@ export function lockBrowserGestures() {
  *  - 놓친 pointerup 은 touchend/touchcancel 때 실제 접촉 목록과 대조해 복구하고, 포커스를 잃으면 전부 초기화한다
  *  - 전력질주: 조이스틱 y ≥ start 이면 전력질주(내리면 해제). auto 이상까지 갔다가 손을 떼면 자동 전력질주(손잡이는 림 위쪽에 고정),
  *    자동 전력질주 중 왼쪽 영역을 다시 터치하면 취소하고 그 터치의 조작을 따른다
- * 상태는 폴링: move*, look*(프레임마다 누적 후 endFrame 에서 0), fire/jump/swap.
+ * 상태는 폴링: move*, look*(프레임마다 누적 후 endFrame 에서 0), fire/jump/throw/throw2/weapon.
  */
 export class TouchControls {
   enabled = false;
@@ -36,7 +36,8 @@ export class TouchControls {
   lookDY = 0;
   fireClicked = false;
   jumpPressed = false;
-  swapPressed = false;
+  throwPressed = false;
+  throwHeavyPressed = false;
   weaponPressed = false;
   /** 자동 전력질주 (손을 떼도 유지) */
   sprintLocked = false;
@@ -171,7 +172,8 @@ export class TouchControls {
       if (btn === 'fire') this.fireClicked = true;
       else if (btn === 'jump') this.jumpPressed = true;
       else if (btn === 'weapon') this.weaponPressed = true;
-      else this.swapPressed = true;
+      else if (btn === 'throw') this.throwPressed = true;
+      else this.throwHeavyPressed = true;
     } else if (inMoveZone && this.movePtr === -1) {
       role = 'move';
       this.movePtr = e.pointerId;
@@ -309,7 +311,7 @@ export class TouchControls {
 
   endFrame() {
     this.lookDX = this.lookDY = 0;
-    this.fireClicked = this.jumpPressed = this.swapPressed = this.weaponPressed = false;
+    this.fireClicked = this.jumpPressed = this.throwPressed = this.throwHeavyPressed = this.weaponPressed = false;
     if (this.debug) this.debugEl.textContent = this.debugText();
   }
 }

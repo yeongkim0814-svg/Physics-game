@@ -4,8 +4,10 @@ import { Input } from '../core/input';
 import { PlayerController } from '../player/PlayerController';
 import { RetroPipeline } from '../render/retro';
 import { GameWorld } from '../world/GameWorld';
+import { Throwables } from '../world/Throwables';
+import { gameEvents } from '../core/events';
 import { MobManager } from '../mobs/MobManager';
-import { VISUAL, PERF } from '../config/settings';
+import { VISUAL, PERF, DEBUG } from '../config/settings';
 import { createOverlays } from '../ui/overlays';
 import { makeHudText } from '../ui/hud';
 import { MomentumLauncher } from '../weapons/MomentumLauncher';
@@ -50,6 +52,10 @@ export async function startGame(root: HTMLElement) {
   mobs = new MobManager(scene, world, gameWorld.mobSpawns, PERF.mobCap);
   const view = new ViewModel(camera);
   const arcs = new ArcEffects(scene);
+  const throwables = new Throwables(scene, world, player);
+  if (DEBUG.logThrowables) {
+    gameEvents.onLanded.on((st, t, h) => console.log(`[onLanded] kind=${st.kind} id=${st.id} mass=${st.mass} t=${t.toFixed(4)}s drop=${h.toFixed(2)}m`));
+  }
 
   // --- 무기 2개 (WPN 버튼/F 키로 순환 전환) ---
   const weapons: Weapon[] = [
@@ -66,7 +72,7 @@ export async function startGame(root: HTMLElement) {
 
   const input = new Input(renderer.domElement, root);
   if (import.meta.env.DEV) {
-    (window as any).__game = { player, gfx, input, world, get weapon() { return weapon; }, projectiles, gameWorld, mobs, arcs, scene, camera };
+    (window as any).__game = { player, gfx, input, world, get weapon() { return weapon; }, projectiles, throwables, gameWorld, mobs, arcs, scene, camera };
   }
 
   const overlays = createOverlays(root, () => input.touch.enabled, () => input.touch.toggleDebug());
@@ -93,15 +99,18 @@ export async function startGame(root: HTMLElement) {
     }
     weapon.update(dt, input);
     projectiles.update(dt);
+    throwables.update(dt, input);
     player.update(dt, input);
     mobs.update(dt, player);
     if (player.dead) {
       weapon.reset();
+      throwables.clear();
       player.respawn(gameWorld.spawn.x, gameWorld.spawn.y, gameWorld.spawn.z);
     }
     arcs.update(dt);
     gameWorld.update(dt);
     world.step();
+    throwables.afterStep();
     gfx.render(scene, camera, now / 1000);
 
     frames++;

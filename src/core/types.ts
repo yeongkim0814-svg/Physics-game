@@ -40,3 +40,10 @@ export interface MobDef {
   /** 받는 피해 배율 */
   damageMul: Record<'physical' | 'electric', number>;
 }
+
+/** 돌을 던지는 쪽(플레이어)이 제공하는 최소 정보 */
+export interface ThrowSource {
+  eyePosition(out?: THREE.Vector3): THREE.Vector3;
+  aimDirection(out?: THREE.Vector3): THREE.Vector3;
+  readonly velocity: THREE.Vector3;
+}

@@ -15,6 +15,26 @@ export const TUNING = {
     chargeSlowMul: 0.35, // 코일 충전 중 이동속도 배율
     fallSafeSpeed: 12, fallDamagePerSpeed: 6,
   },
+  /**
+   * 던지는 돌 (M1a). 낙하 가속은 질량과 무관해야 하므로 공기저항(linearDamping)은 0.
+   * 반지름은 충돌/표시 공용. 무거운 돌이 더 크다.
+   */
+  throwable: {
+    stoneMass: 1, heavyMass: 8,        // kg (가벼운 돌 / 무거운 돌)
+    stoneRadius: 0.12, heavyRadius: 0.2, // m
+    throwSpeed: 14,                    // 시선 방향 초속 (m/s)
+    inheritPlayerVelocity: 1,          // 플레이어 속도를 얼마나 물려받는가 (0~1)
+    linearDamping: 0,                  // 공기저항 끔: 질량과 무관한 낙하
+    angularDamping: 0.4,
+    restitution: 0.15, friction: 0.8,
+    cooldown: 0.35,                    // 던지기 간격 (s)
+    maxActive: 12,                     // 동시 활성 돌 상한. 넘으면 가장 오래된 돌부터 치운다
+    maxAge: 30,                        // 던진 뒤 이 시간이 지나면 치움 (s)
+    settledLife: 8,                    // 착지 후 이 시간이 지나면 치움 (s)
+    voidY: -40,                        // 이보다 아래로 떨어지면 치움 (협곡 바닥 -14 보다 충분히 아래)
+    muzzleOffset: 0.6,                 // 눈에서 시선 방향으로 띄워 생성하는 거리 (m)
+    contactTolerance: 0.02,            // 착지 판정: 접촉점 거리 허용치 (m)
+  },
   launcher: {
     projectileSpeed: 40,   // 사출 속도 (m/s)
     // 임펄스 J = m·v·recoil·recoilScale (N·s), Δv = J / 플레이어질량.
