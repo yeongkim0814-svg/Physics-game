@@ -19,6 +19,12 @@ export interface MaterialOpts {
   vertexColors?: boolean;
   /** 이 재질만의 탈색 0~1 (로우폴리). setMaterialDesaturation 으로 런타임 변경 */
   desaturate?: number;
+  /** 'ps1' 에서도 정점색을 쓴다 (주인공처럼 정점색이 본체인 모델용). 월드 박스는 ps1 에서 정점색을 쓰지 않으므로 기본 false */
+  alwaysVertexColors?: boolean;
+  /** (로우폴리) 알베도 × 이 색을 자체 발광으로 더한다: 그늘 면에서도 색이 살게 (조명 무관, 알베도에 비례하는 따뜻한 보정광) */
+  selfGlow?: readonly [number, number, number];
+  /** (로우폴리) 림 라이트: 시선과 비스듬한 가장자리에 더하는 얇은 역광 효과. color 0xRRGGBB, strength 0..1, power 지수(클수록 얇음) */
+  rim?: { color: number; strength: number; power: number };
 }
 
 /** 지역 탈색 공유 유니폼: 모든 로우폴리 재질이 월드 xz 위치로 같은 지역 목록을 본다 */
@@ -41,10 +47,18 @@ export function setMaterialDesaturation(m: THREE.Material, amount: number) {
 }
 
 /** 로우폴리 재질 패치: 월드 위치 varying + 재질/지역 탈색을 알베도에 적용 (식은 desat.ts 와 동일) */
-function patchLowpoly(material: THREE.Material, desat: { value: number }) {
+function patchLowpoly(material: THREE.Material, desat: { value: number }, o: MaterialOpts = {}) {
   material.userData.desat = desat;
+  const glow = { value: new THREE.Vector3(...(o.selfGlow ?? [0, 0, 0])) };
+  const rimColor = { value: new THREE.Color(o.rim?.color ?? 0) };
+  const rimStrength = { value: o.rim?.strength ?? 0 };
+  const rimPower = { value: o.rim?.power ?? 3 };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uDesat = desat;
+    shader.uniforms.uSelfGlow = glow;
+    shader.uniforms.uRimColor = rimColor;
+    shader.uniforms.uRimStrength = rimStrength;
+    shader.uniforms.uRimPower = rimPower;
     shader.uniforms.uRegions = regionUniform;
     shader.uniforms.uSoft = softUniform;
     shader.vertexShader = shader.vertexShader
@@ -60,6 +74,10 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }) {
         varying vec3 vDesatPos;
         uniform float uDesat;
         uniform float uSoft;
+        uniform vec3 uSelfGlow;
+        uniform vec3 uRimColor;
+        uniform float uRimStrength;
+        uniform float uRimPower;
         uniform vec4 uRegions[${DESAT_MAX_REGIONS}];`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         float dAmt = uDesat;
@@ -70,7 +88,13 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }) {
             dAmt = max(dAmt, rg.w * (1.0 - smoothstep(rg.z * (1.0 - uSoft), rg.z, dd)));
           }
         }
-        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), clamp(dAmt, 0.0, 1.0));`);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), clamp(dAmt, 0.0, 1.0));`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += diffuseColor.rgb * uSelfGlow;
+        if (uRimStrength > 0.0) {
+          float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), uRimPower);
+          totalEmissiveRadiance += uRimColor * (rimF * uRimStrength);
+        }`);
   };
 }
 
@@ -84,9 +108,9 @@ export function createMaterial(color: number, o: MaterialOpts = {}) {
     color, flatShading: true, emissive: o.emissive ?? 0x000000, fog: o.fog ?? true,
     ...(o.map ? { map: o.map } : {}), // map: undefined 를 넘기면 three 가 경고한다
     ...(o.emissiveMap ? { emissiveMap: o.emissiveMap } : {}),
-    ...(o.vertexColors && !isPS1 ? { vertexColors: true } : {}),
+    ...(o.vertexColors && (!isPS1 || o.alwaysVertexColors) ? { vertexColors: true } : {}),
   });
   if (isPS1) patchRetro(m);
-  else patchLowpoly(m, { value: o.desaturate ?? 0 });
+  else patchLowpoly(m, { value: o.desaturate ?? 0 }, o);
   return m;
 }

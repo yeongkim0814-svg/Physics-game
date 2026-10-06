@@ -97,32 +97,50 @@ export const VISUAL = {
     blob: { radius: 0.5, opacity: 0.32, color: 0x24324d, maxDrop: 40, minScale: 0.45, fadeHeight: 12 },
     /** 금속 구조물(전도체)의 청록 발광 비율 (CUES.conductor × 이 값). 밝은 낮에도 전도체가 읽히게 */
     conductorGlow: 0.3,
-    /** 주인공 자체 발광: 밝은 낮빛에서는 거의 필요 없다 (ps1 은 data/protagonist.ts 의 GLOW_PS1) */
-    characterGlow: { shirt: 0.08, skin: 0.06, slacks: 0.07 },
+    /**
+     * 주인공 렌더 보정 (M1h). 낮빛(햇빛 면 = 따뜻한 태양 + 푸른 반사광)에서 크림 셔츠가 흰색으로 날아가고 그늘은 회청색으로 죽는 문제를 다룬다.
+     * exposure = 정점색·텍스처 알베도 배율(날림 방지), selfGlow = 알베도 × 이 색을 더하는 따뜻한 보정광(그늘 면 색 유지, 알베도에 비례),
+     * rim = 하늘 앞 실루엣을 살리는 얇은 역광 (색 0xRRGGBB, strength 0..1, power 클수록 얇음).
+     */
+    character: {
+      exposure: 0.72,
+      selfGlow: [0.55, 0.44, 0.3] as [number, number, number],
+      rim: { color: 0xcfe6ff, strength: 0.34, power: 3.2 },
+    },
   },
   /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
   character: {
     strideRate: 1.9,       // 걸음 위상 진행 (rad per m)
-    legSwing: 0.75, armSwing: 0.5, // 다리/팔 스윙 최대 각
+    legSwing: 0.6, armSwing: 0.45, // 다리/팔 스윙 최대 각
     bob: 0.035,            // 걸을 때 몸 상하 흔들림 (m)
     poseSmooth: 16,        // 자세 보간 속도 (초당 지수 감쇠)
-    restArm: 0.9,          // 비조준 시 무기 든 팔이 앞으로 기운 각
+    restArm: 1.3,          // 비조준 시 무기 든 팔(어깨+팔꿈치)이 앞으로 기운 각: 장치를 몸 앞에 든다
     aimArmBase: Math.PI / 2, // 조준 시 팔이 수평 (여기에 카메라 pitch 가 더해진다)
     airLeg: 0.55, airArm: 1.0, // 공중: 다리 벌림 / 왼팔 벌림
     fallLean: 0.25, leanVy: 12, // 낙하 시 상체 기울기 최대 각 / 그 각에 도달하는 하강 속도
     kickArm: 0.5, kickBack: 0.12, kickDecay: 14, // 반동 연출: 팔 들림(rad)/무기 뒤로(m)/복귀 속도
     // --- 주인공 모델(M1f) 추가 수치. 색·치수는 data/protagonist.ts ---
-    restLean: 0.2,         // 기본 구부정 자세: 상체가 앞으로 숙인 각 (rad)
-    runLean: 0.1,          // 달릴수록 추가로 숙이는 각 (속도 비 1 기준)
+    restLean: 0.07,        // 기본 자세: 상체가 앞으로 약간 숙인 각 (rad). 일러스트는 곧은 자세에 가까움
+    runLean: 0.08,         // 달릴수록 추가로 숙이는 각 (속도 비 1 기준)
     headCounter: 0.85,     // 고개가 상체 숙임을 상쇄하는 비율 (1 = 항상 정면 수평)
     headAimFollow: 0.5,    // 조준 시 고개가 카메라 pitch 를 따라가는 비율
-    kneeRest: 0.4,         // 서 있을 때 무릎 굽힘 (rad). 허벅지는 절반만큼 앞으로 (발은 엉덩이 아래 유지)
-    kneeWalk: 0.75,        // 걸을 때 앞으로 내딛는 다리의 무릎 굽힘 추가량
-    leftElbowRest: 0.35, leftElbowSwing: 0.8, leftArmRest: 0.06, // 맨손 팔: 기본 팔꿈치 굽힘 / 앞스윙 때 추가 굽힘 비 / 기본 앞쪽 각
-    weaponElbowRest: 0.55, weaponElbowAim: 0.15, // 무기 든 팔 팔꿈치: 비조준(어깨+팔꿈치=restArm) / 조준(어깨+팔꿈치=수평+pitch)
+    kneeRest: 0.1,         // 서 있을 때 무릎 굽힘 (rad). 허벅지는 절반만큼 앞으로 (발은 엉덩이 아래 유지)
+    kneeWalk: 0.85,        // 걸을 때 앞으로 내딛는 다리의 무릎 굽힘 추가량
+    leftElbowRest: 0.22, leftElbowSwing: 0.8, leftArmRest: 0.04, // 맨손 팔: 기본 팔꿈치 굽힘 / 앞스윙 때 추가 굽힘 비 / 기본 앞쪽 각
+    weaponElbowRest: 0.95, weaponElbowAim: 0.12, // 무기 든 팔 팔꿈치: 비조준(어깨+팔꿈치=restArm) / 조준(어깨+팔꿈치=수평+pitch)
     breathRate: 2.1, breathAmp: 0.014, // 숨쉬기(idle): 각속도(rad/s) / 가슴 부피 변화 비율(상체 각도에도 0.8배 반영)
     airKnee: 0.8,          // 공중 앞다리 무릎 굽힘
     kickTorso: 0.08,       // 반동 시 상체가 젖혀지는 각
+    // --- M1h(일러스트 기준 재제작): 날씬한 실사 비율 모델용 재조정 ---
+    armRestOut: 0.1,       // 팔을 몸에서 살짝 벌린 각 (rad, 허리 파우치를 비켜 간다)
+    /** 정점색/재질 룩 */
+    look: {
+      faceJitter: 0.045,   // 면마다 미세 명도 변화 (패싯 느낌) ± 비율
+      seed: 11,            // 면 지터 시드
+      ps1Emissive: 0x2a2420, // 'ps1' 프리셋: 정점색과 무관한 약한 단색 자체 발광 (보랏빛 그늘에서 크림이 죽지 않게)
+      fabricTile: 0.36,    // 천 텍스처 한 장이 덮는 길이 (m)
+      fabricSize: 128,     // 천 텍스처 한 변 (px, 타일링)
+    },
   },
   /** 던지는 돌 색: 무거운 쪽이 더 어둡다 */
   throwable: { light: 0xb9a58a, heavy: 0x4a3b36 },
