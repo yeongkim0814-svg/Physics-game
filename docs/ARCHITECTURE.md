@@ -1,5 +1,7 @@
 # 아키텍처 계획
 
+> ⚠ 폐기된 익스트랙션 설계(보관용). 현행 설계: /GAME_DESIGN.md
+
 ## 파일 구조
 ```
 src/
@@ -42,3 +44,22 @@ src/
 - 위치 규칙: `stash`(창고) / `safe`(안전 보관함: 레이드 획득(found)품만 입장, 사망해도 유지) / `prep`(주머니/조끼/가방 격자 + 장착 equip) / `raid`(진행 중 레이드; 남은 채 로드되면 이탈=사망) / `pending`(탈출 후 창고 초과분)
 - 분석·연구는 `{startedAt, durationMs}` 타임스탬프 → 화면 이동·앱 종료와 무관하게 진행, 로드/매초 `resolveJobs` 가 확정
 - 개발 진입점: `?dev=grid`(격자 단독), `?dev=raid`(허브 생략·저장 안 건드림, `&armor=plate_vest&aux=shin_guard&rear=handle&base=em_coil`)
+
+## 새 설계 모듈 초안
+
+유지할 모듈:
+- `core/` — input, types, physics, events
+- `config/tuning.ts` — 게임플레이 수치
+- `config/settings.ts` — 비주얼·성능·터치 설정
+- `render/` — PS1 재질·안개·후처리
+- `player/` — 반동 이동, HP/스태미너
+- `weapons/` — 사출기, ConductorGraph 유지
+- `world/` — 지형·물·금속 구조물
+
+신규 후보:
+- `data/` — 환경·랜드마크·NPC 배치 (기존 무기 정의 대신)
+- `evidence/` — 증거 카드·일지 UI [제안]
+- `device/` — 기준점 장치 모듈·제출 인터페이스 [제안]
+- `memory/` — 기억 장면·이미지 재생 [제안]
+- `npc/` — NPC 상태·대화 [제안]
+- `save/` — 저장 지점·HP/스태미너 복구 [제안]
