@@ -18,11 +18,6 @@ export function overchargeFraction(charge: number, at: number, max: number): num
   return Math.min(1, Math.max(0, (charge - at) / (max - at)));
 }
 
-/** 과충전 방출 시 전방 슬롯 마모량 */
-export function overchargeWear(fraction: number, wearOvercharge: number, wearRate: number): number {
-  return fraction * wearOvercharge * wearRate;
-}
-
 /**
  * a→b 를 잇는 지그재그 번개 경로. 끝점은 정확히 a, b 이고 중간 점만 직선에서 수직 방향으로 amp 이내로 흔들린다
  * (양끝에서 0, 가운데에서 최대인 sin 포락선). 점 개수 = segments + 1.

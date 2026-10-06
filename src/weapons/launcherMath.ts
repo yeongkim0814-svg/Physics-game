@@ -30,11 +30,6 @@ export function decayHeat(heat: number, recoverPerSec: number, dt: number): numb
   return Math.max(0, heat - recoverPerSec * dt);
 }
 
-/** 후방 슬롯 마모량 = 임펄스 × wearPerRecoil × 부품 마모율. 강하게 쏠수록 빨리 마모 */
-export function rearWear(impulse: number, wearPerRecoil: number, wearRate: number): number {
-  return impulse * wearPerRecoil * wearRate;
-}
-
 /**
  * 선분(origin + dir·t, 0≤t≤len)과 구의 첫 교차 t. 없으면 null.
  * dir 은 단위벡터. 시작점이 구 내부면 0.

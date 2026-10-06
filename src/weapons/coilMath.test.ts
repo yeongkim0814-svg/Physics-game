@@ -3,7 +3,6 @@ import {
   chargeStep,
   arcDamage,
   overchargeFraction,
-  overchargeWear,
   jaggedPath,
   nearestWithin,
 } from './coilMath';
@@ -87,29 +86,6 @@ describe('coilMath', () => {
       expect(overchargeFraction(2.0, 1.0, 1.5)).toBe(1.0);
       // charge < at인 경우 0으로 클램프
       expect(overchargeFraction(0.5, 1.0, 1.5)).toBe(0);
-    });
-  });
-
-  describe('overchargeWear', () => {
-    it('fraction 0 이면 0', () => {
-      expect(overchargeWear(0, 0.1, 1.0)).toBe(0);
-    });
-
-    it('fraction 1이면 wearOvercharge × wearRate', () => {
-      expect(overchargeWear(1.0, 0.1, 2.0)).toBe(0.2);
-    });
-
-    it('중간값에서 선형 비례', () => {
-      // fraction=0.5, wearOvercharge=0.1, wearRate=2.0 → 0.1
-      expect(overchargeWear(0.5, 0.1, 2.0)).toBe(0.1);
-    });
-
-    it('wearRate 0 → 마모 없음', () => {
-      expect(overchargeWear(1.0, 0.1, 0)).toBe(0);
-    });
-
-    it('높은 마모값', () => {
-      expect(overchargeWear(0.8, 0.5, 3.0)).toBeCloseTo(1.2);
     });
   });
 

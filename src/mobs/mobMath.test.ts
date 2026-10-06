@@ -3,7 +3,6 @@ import {
   stepAttack,
   chaseDir,
   separation,
-  rollDrop,
   turnToward,
   READY,
 } from './mobMath';
@@ -161,43 +160,6 @@ describe('mobMath', () => {
       expect(pz).toBeCloseTo(0);
       expect(Number.isNaN(px)).toBe(false);
       expect(Number.isNaN(pz)).toBe(false);
-    });
-  });
-
-  describe('rollDrop', () => {
-    it('rng=()=>0 이면 모든 항목이 min', () => {
-      const table: Record<string, [number, number]> = { item_a: [2, 4], item_b: [1, 5] };
-      const result = rollDrop(table, () => 0);
-      expect(result).toEqual({ item_a: 2, item_b: 1 });
-    });
-
-    it('rng=()=>0.999999 이면 max에 가까움 (양끝 포함)', () => {
-      const table: Record<string, [number, number]> = { item_a: [2, 4], item_b: [1, 5] };
-      const result = rollDrop(table, () => 0.999999);
-      // min + floor(0.999999 * (max - min + 1))
-      // item_a: 2 + floor(0.999999 * 3) = 2 + 2 = 4
-      // item_b: 1 + floor(0.999999 * 5) = 1 + 4 = 5
-      expect(result).toEqual({ item_a: 4, item_b: 5 });
-    });
-
-    it('결과가 0인 항목은 제외', () => {
-      const table: Record<string, [number, number]> = { drop_a: [0, 1], drop_b: [2, 4] };
-      const result = rollDrop(table, () => 0);
-      // drop_a: 0 + floor(0 * 2) = 0 (제외)
-      // drop_b: 2 (포함)
-      expect(result).toEqual({ drop_b: 2 });
-    });
-
-    it('범위 [2, 4]에서 여러 rng값이 항상 범위 내', () => {
-      const table: Record<string, [number, number]> = { ore: [2, 4] };
-      for (let i = 0; i < 10; i++) {
-        const rng = () => i / 10;
-        const result = rollDrop(table, rng);
-        if ('ore' in result) {
-          expect(result.ore).toBeGreaterThanOrEqual(2);
-          expect(result.ore).toBeLessThanOrEqual(4);
-        }
-      }
     });
   });
 

@@ -21,9 +21,10 @@ export const TUNING = {
     // recoilScale 은 "게임 감각용 증폭" — 1.0 이면 현실 운동량 보존(체감 거의 없음). 조작감 튜닝 최우선 수치
     recoilScale: 7.5,
     fireInterval: 0.4,     // 연사 간격 (s)
-    materialsPerShot: 1,   // 발당 소모 덩어리 수 (남용 방지 비용 ①)
-    durabilityCostPerShot: 1, // 발당 베이스 내구도 소모 (남용 방지 비용 ②)
-    wearPerRecoil: 0.004,  // 후방 슬롯 마모 = 반동 임펄스 * 이 값 * 부품 wearRate
+    projectileMass: 2,     // 투사체 질량 (kg). 탄약은 무제한, 연사 간격(fireInterval)이 유일한 제한
+    projectileColor: 0x59603f,
+    recoil: 1,             // 반동 배율 (절대 세기는 recoilScale)
+    stability: 0,          // 퍼짐 안정성 (currentSpread 의 분모 보정)
     projectileGravity: 12, // 투사체 중력 (m/s^2) — 플레이어 중력보다 낮아 탄도가 완만
     projectileLife: 4,     // 투사체 수명 (s)
     damagePerJoule: 0.02,  // 물리 피해 = 0.5·m·v² · 이 값
@@ -38,10 +39,9 @@ export const TUNING = {
   coil: {
     chargeTime: 1.5,       // 충전 1.0(=최대 위력)까지 걸리는 시간 (s)
     minCharge: 0.15,       // 이보다 적게 충전하고 놓으면 불발
-    overchargeAt: 1.0, overchargeMax: 1.5, // 이 이상 계속 쥐면 과충전(위력 ↑, 전방 마모 ↑), 최대치에서 자동 방출
+    overchargeAt: 1.0, overchargeMax: 1.5, // 이 이상 계속 쥐면 과충전(위력 ↑), 최대치에서 자동 방출
     maxDamage: 60, arcRange: 25, spread: 0.03,
-    durabilityCostPerShot: 1, // 발사당 베이스 내구도
-    wearOvercharge: 8,     // 최대 과충전 방출 시 전방 슬롯 마모 (비율 × 이 값 × 부품 wearRate)
+    cooldown: 0.25,        // 방출 후 재충전까지 대기 (s)
     // 전도체 연쇄: 구조물/물/금속 몹끼리는 chainRadius, 플레이어·절연·일반 몹은 contactRadius 안이어야 닿는다
     chainRadius: 6, contactRadius: 2.5, snapRadius: 3, // snapRadius: 빔이 벽/바닥에 맞았을 때 근처 전도체로 이어붙이는 거리
     chainFalloff: 0.7, chainMaxHops: 8,

@@ -47,16 +47,6 @@ export function separation(selfX: number, selfZ: number, others: [number, number
   return [px, pz];
 }
 
-/** 드롭 테이블 {재료: [최소, 최대]}(정수, 양끝 포함) → 실제 드롭량. 0 개인 항목은 제외 */
-export function rollDrop(table: Record<string, [number, number]>, rng: () => number): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const [id, [min, max]] of Object.entries(table)) {
-    const n = min + Math.floor(rng() * (max - min + 1));
-    if (n > 0) out[id] = n;
-  }
-  return out;
-}
-
 /** 목표 방향(yaw)으로 최대 maxStep 만큼만 회전한 새 yaw. 최단 경로(±π 래핑) */
 export function turnToward(current: number, target: number, maxStep: number): number {
   let d = target - current;
