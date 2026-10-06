@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { lambert } from '../render/palette';
+import { createMaterial } from '../render/materials';
 import { VISUAL } from '../config/settings';
 import {
   CHEST, FOREARM_PARTS, HEAD_PARTS, JOINTS, SHIN_PARTS, THIGH_PARTS, TORSO_PARTS, UPPER_ARM_PARTS,
@@ -24,7 +24,7 @@ const scaleHex = (hex: number, k: number) => {
 const plainMat = (color: number, glow = 0) => {
   const key = `c${color}:${glow}`;
   let m = matCache.get(key);
-  if (!m) matCache.set(key, (m = lambert(color, { emissive: scaleHex(color, glow) })));
+  if (!m) matCache.set(key, (m = createMaterial(color, { emissive: scaleHex(color, glow) })));
   return m;
 };
 /** 텍스처 재질: emissiveMap 으로 텍스처 색 그대로 glow 만큼 자체 발광 (반사선·테 선이 그늘에서도 유지) */
@@ -33,7 +33,7 @@ const texMat = (id: TexId, glow = 0) => {
   let m = matCache.get(key);
   if (!m) {
     const map = protagonistTexture(id);
-    m = lambert(0xffffff, { map, emissiveMap: map, emissive: scaleHex(0xffffff, glow) });
+    m = createMaterial(0xffffff, { map, emissiveMap: map, emissive: scaleHex(0xffffff, glow) });
     matCache.set(key, m);
   }
   return m;

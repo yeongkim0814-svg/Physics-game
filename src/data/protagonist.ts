@@ -1,4 +1,6 @@
 import { COL } from '../render/palette';
+import { isPS1 } from '../render/style';
+import { VISUAL } from '../config/settings';
 
 /**
  * 주인공 외형 사양 (GAME_DESIGN 14-1 '주인공 외형 [확정]'). 치수(m)·색·파츠 위치를 데이터로 두고
@@ -57,7 +59,9 @@ export const JOINTS = {
 
 const T = PCOL;
 /** 자체 발광 비율: 셔츠(크림)가 보랏빛 그늘에서 회색으로 죽지 않게 / 피부·바지는 약하게 */
-export const GLOW = { shirt: 0.4, skin: 0.22, slacks: 0.16 } as const;
+const GLOW_PS1 = { shirt: 0.4, skin: 0.22, slacks: 0.16 } as const;
+/** 'lowpoly'(밝은 낮빛)에서는 거의 필요 없다 — 값은 settings.ts VISUAL.lowpoly.characterGlow */
+export const GLOW: { readonly shirt: number; readonly skin: number; readonly slacks: number } = isPS1 ? GLOW_PS1 : VISUAL.lowpoly.characterGlow;
 
 /** 몸통 그룹 (피벗 = 허리/엉덩이). 구부정하게 숙이는 회전과 숨쉬기는 이 그룹과 chest 그룹에 걸린다 */
 export const TORSO_PARTS: readonly PartSpec[] = [

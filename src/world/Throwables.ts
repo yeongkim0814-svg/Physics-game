@@ -4,7 +4,7 @@ import type { ThrowSource } from '../core/types';
 import { gameEvents, type StoneInfo, type StoneKind } from '../core/events';
 import { TUNING } from '../config/tuning';
 import { VISUAL } from '../config/settings';
-import { lambert } from '../render/palette';
+import { createMaterial } from '../render/materials';
 import { cullReason, evictForRoom, throwVelocity, tickCooldown, type V3 } from './throwMath';
 
 const T = TUNING.throwable;
@@ -49,7 +49,7 @@ export class Throwables {
   private nextId = 1;
   private geo = new THREE.IcosahedronGeometry(1, 0);
   private mats: Record<StoneKind, THREE.Material> = {
-    light: lambert(KINDS.light.color), heavy: lambert(KINDS.heavy.color),
+    light: createMaterial(KINDS.light.color), heavy: createMaterial(KINDS.heavy.color),
   };
 
   constructor(

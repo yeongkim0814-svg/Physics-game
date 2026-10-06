@@ -15,7 +15,8 @@ export interface WaterDef { center: [number, number]; size: [number, number] }
 export interface MobSpawnDef { kind: MobKind; pos: [number, number, number] }
 export interface GroundDef { pos: Vec3; size: Vec3 }
 /** 안개 무시 실루엣 (맵 밖 원경). band 는 밑동의 탈색 구간 */
-export interface LandmarkDef { pos: Vec3; size: Vec3; color: number; band?: { height: number; color: number } }
+/** color/band.color = PS1 실루엣색(발광), lowColor/band.lowColor = 로우폴리 낮 색(안개 원근으로 청백색에 묻힌다) */
+export interface LandmarkDef { pos: Vec3; size: Vec3; color: number; lowColor: number; band?: { height: number; color: number; lowColor: number } }
 
 const C = (pos: Vec3, size: Vec3): BlockDef => ({ pos, size, kind: 'concrete' });
 
@@ -95,11 +96,11 @@ export const MAP = {
 
   /** 지평선 위로 솟은 원경 실루엣. 안개를 무시하고 밑동만 탈색된 느낌 */
   landmarks: [
-    { pos: [70, 70, -330], size: [22, 140, 22], color: 0x2b2750, band: { height: 30, color: 0x8d8a96 } },
-    { pos: [-120, 35, -310], size: [30, 70, 20], color: 0x2f2b58 },
-    { pos: [-10, 20, -340], size: [60, 40, 16], color: 0x342f5e },
+    { pos: [70, 70, -330], size: [22, 140, 22], color: 0x2b2750, lowColor: 0xd9c4a0, band: { height: 30, color: 0x8d8a96, lowColor: 0xe0a85a } },
+    { pos: [-120, 35, -310], size: [30, 70, 20], color: 0x2f2b58, lowColor: 0xb7c3d6 },
+    { pos: [-10, 20, -340], size: [60, 40, 16], color: 0x342f5e, lowColor: 0xcdb48e },
   ] as LandmarkDef[],
 
-  /** 하늘의 달 (크림색, 안개 무시) */
+  /** 하늘의 달 (크림색, 안개 무시, 'ps1' 전용. 낮 프리셋에서는 그리지 않는다) */
   moon: { pos: [-120, 120, -380] as Vec3, radius: 14, color: 0xf2e3b8 },
 };

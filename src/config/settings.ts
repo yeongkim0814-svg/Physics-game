@@ -1,6 +1,12 @@
 // 비주얼·입력·성능 설정. 게임플레이 수치는 tuning.ts, 이쪽은 "보이고 조작되는 방식"만 다룬다.
 
 export const VISUAL = {
+  /**
+   * 비주얼 프리셋 (2026-10-06 변경). 'lowpoly' = BotW 풍 밝고 선명한 색감의 로우폴리(기본, 네이티브 해상도·플랫 셰이딩·낮 하늘),
+   * 'ps1' = 이전 PS1풍(저해상도 타깃·정점 스냅·디더·석양, 롤백/비교용). 개발 중에는 URL `?style=ps1|lowpoly` 로 덮어쓸 수 있다.
+   * 아래 `lowpoly` 블록은 'lowpoly' 전용, 그 외 fog/lighting/sky/post/internalHeight/vertexSnap/texture* 는 'ps1' 전용 수치다.
+   */
+  style: 'lowpoly' as 'lowpoly' | 'ps1',
   fov: 75,
   /** 내부 렌더 해상도(세로). 가로는 화면 비율로 결정 (270 → 16:9 에서 480×270). 낮출수록 거칠고 빠르다 */
   internalHeight: 270,
@@ -42,6 +48,58 @@ export const VISUAL = {
     ambient: 0x7488ee, ambientGround: 0x6c5268, ambientIntensity: 1.9, // 위쪽 면=차가운 하늘색, 아래쪽 면=따뜻한 바닥 반사
     sun: 0xffa24a, sunIntensity: 3.5, sunDir: [0.8, 0.3, 0.45] as [number, number, number], sunDistance: 40,
   },
+  /** 'lowpoly' 프리셋 전용 (BotW 풍 밝은 낮 + 대기 원근). 색은 0xRRGGBB, 길이는 m */
+  lowpoly: {
+    /** 자동 해상도 저하의 하한 (렌더 버퍼 세로 px). 기본 해상도는 innerHeight × min(devicePixelRatio, PERF.maxPixelRatio) */
+    minHeight: 360,
+    /** 안개 = 배경 = 하늘 지평선 색. near~far 에서 청백색으로 서서히 사라진다 (카메라 far 500 안쪽) */
+    fog: { color: 0xcfe7f5, near: 40, far: 400 },
+    /** 따뜻한 태양광(Directional) + 하늘색/청회색 반사광(Hemisphere). 햇빛 면=크림, 그늘 면=청회색. 강도는 three 물리 단위(≈π 배) */
+    lighting: {
+      sky: 0x93bcff, ground: 0xa0b0e6, hemiIntensity: 2.3,
+      sun: 0xfff1d2, sunIntensity: 2.6, sunDir: [0.45, 0.7, 0.55] as [number, number, number], sunDistance: 40,
+    },
+    /** 낮 하늘 돔: 정점 색 그라디언트(천정 청색 → 중간 → 지평선 옅은 하늘색/크림) + 해 + 로우폴리 구름 */
+    sky: {
+      radius: 400, rings: 32, segments: 24,
+      zenith: 0x2f7fe4, mid: 0x74b8f4, horizon: 0xcfe7f5,
+      gradientPower: 0.75,   // 지평선→천정 분포 지수 (작을수록 옅은 띠가 두꺼움)
+      sun: { distance: 380, radius: 18, color: 0xfffbe6, haloColor: 0xffffff, haloScales: [1.7, 2.6, 3.8] as number[], haloOpacity: 0.18 }, // 후광: 반경 배수별 반투명 원을 겹쳐 단계적으로 흐려진다
+      clouds: {
+        count: 9, parts: [3, 5] as [number, number], distance: 300, size: [26, 48] as [number, number],
+        squash: 0.4, elevMin: 0.2, elevMax: 0.62, // 고도(rad)
+        color: 0xffffff, shade: 0x4a5878, drift: 0.004, // shade = 그늘 면이 너무 어두워지지 않게 더하는 자체 발광색
+                    // 구름 무리가 천천히 도는 속도 (rad/s)
+      },
+    },
+    /** 박스 지오메트리 정점색 (텍스처 대신): 낮은 주파수 명도 노이즈 + 밑동의 먼지색 그라디언트 */
+    tint: {
+      segment: 8,          // 벽 한 면을 이 크기(m) 이하로 분할 (정점색 보간 해상도)
+      groundSegment: 14,   // 지면 분할 크기(m)
+      farSegment: 60,      // 맵 밖 평원 분할 크기(m)
+      noiseAmp: 0.1, noiseScale: 0.03, seed: 17, // ±명도 / 1m 당 노이즈 주파수 / 시드
+      bottomColor: 0xe0b98a, bottomBlend: 0.42, bottomHeight: 5, // 밑동 먼지색 비율 / 그 색이 번지는 높이(m)
+    },
+    /** 선택 외곽선 (깊이 기반 후처리, 렌더 타깃 1개 추가). 끄면 후처리 없이 곧바로 캔버스에 그린다 */
+    outline: { enabled: false, color: 0x2a3550, strength: 0.4, edgeLo: 0.09, edgeHi: 0.22 },
+    /** 지역 탈색(색이 정보): 월드 xz 원형 지역 안의 모든 재질 채도를 낮춘다. [x, z, 반경 m, 강도 0~1]. 최대 4개. 지금은 비어 있음 */
+    desat: { regions: [] as [number, number, number, number][], softness: 0.5, landmarkBase: 0.88 },
+    /** 지면 장식 (시각 전용, 충돌 없음): 맵 밖 평원의 나무·바위·언덕 + 맵 안 이끼 패치 + 협곡 바닥 청록 잔물 */
+    decor: {
+      seed: 5, trees: 150, rocks: 60, hills: 16, mossPatches: 70, puddles: 12,
+      treeRange: [92, 460] as [number, number], // 맵 중심 기준 체비셰프 거리
+      hillRange: [150, 470] as [number, number],
+      mossColor: 0x8bb36a, mossColor2: 0xa9bb62, puddleColor: 0x46a89a,
+      treeCrown: 0x6fa860, treeCrown2: 0x93b255, treeTrunk: 0x8a6244,
+      rock: 0xc9b9a2, hill: 0xd2b27c, hill2: 0xb7b08a,
+    },
+    /** 발밑 블롭 그림자 (3인칭 가독성) */
+    blob: { radius: 0.5, opacity: 0.32, color: 0x24324d, maxDrop: 40, minScale: 0.45, fadeHeight: 12 },
+    /** 금속 구조물(전도체)의 청록 발광 비율 (CUES.conductor × 이 값). 밝은 낮에도 전도체가 읽히게 */
+    conductorGlow: 0.3,
+    /** 주인공 자체 발광: 밝은 낮빛에서는 거의 필요 없다 (ps1 은 data/protagonist.ts 의 GLOW_PS1) */
+    characterGlow: { shirt: 0.08, skin: 0.06, slacks: 0.07 },
+  },
   /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
   character: {
     strideRate: 1.9,       // 걸음 위상 진행 (rad per m)
@@ -72,6 +130,9 @@ export const VISUAL = {
 
 export const PERF = {
   mobCap: 12,
+  /** 'lowpoly' 전용: 렌더 해상도 = CSS 크기 × min(devicePixelRatio, 이 값). 태블릿 성능 상한 */
+  maxPixelRatio: 1.5,
+  antialias: true, // 'lowpoly' 전용 MSAA (outline 후처리를 켜면 렌더 타깃에는 적용 안 됨)
   postprocess: true,
   showFps: false,
   /** FPS 가 낮으면 내부 해상도를 자동으로 낮춘다 */

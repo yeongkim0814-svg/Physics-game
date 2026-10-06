@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { patchRetro } from './snap';
+import { isPS1 } from './style';
 
 // 색을 코드에서 쓴 그대로 출력 (후처리 색 계산 단순화). Color 생성보다 먼저 설정해야 한다.
 THREE.ColorManagement.enabled = false;
 
-/** 환경 팔레트 (GAME_DESIGN 14절): 청회색 석재 + 구리색 금속 + 따뜻한 모래, 그림자는 차가운 남색 */
-export const COL = {
+/** 이전 PS1풍 팔레트 (GAME_DESIGN 14-1, 보관): 청회색 석재 + 구리색 금속 + 따뜻한 모래, 그림자는 차가운 남색 */
+const COL_PS1 = {
   stone: 0x7f95b2,       // 청회색 석재 (건물·벽)
   stoneLight: 0xa9bdd2,  // 벽돌 윗면 하이라이트 / 밝은 벽돌
   stoneDark: 0x5c7391,   // 어두운 벽돌 / 그늘진 석재
@@ -26,7 +26,36 @@ export const COL = {
   red: 0xc0452e,        // 위험 / 적 / 체력 부족
 } as const;
 
-/** 하늘 그라디언트 (위 → 지평선). 지평선 색은 VISUAL.fog.color 와 맞춘다 */
+/**
+ * 로우폴리(BotW 풍 밝은 낮) 팔레트 (GAME_DESIGN 14절): 모래·황토 베이지 지면, 따뜻한 크림/살구 석재(그늘면은 조명이 청회색으로 만든다),
+ * 구리/황동 금속, 이끼 초록·청록 포인트. 알베도는 밝은 낮빛에서 날아가지 않게 순백보다 한 단계 낮춘다. 키 이름은 PS1 팔레트와 같다.
+ */
+const COL_LOWPOLY: { [K in keyof typeof COL_PS1]: number } = {
+  stone: 0xecca94,       // 크림/살구 석재 (건물·벽)
+  stoneLight: 0xf3e2c2,  // 밝은 석재
+  stoneDark: 0x8fa3c0,   // 청회색 석재 (그늘진·낡은 석재)
+  moss: 0x6fa860,        // 이끼 초록
+  verdigris: 0x4fa598,   // 구리 녹청 (청록)
+  cream: 0xf4e6c0,       // 크림 (목도리, 셔츠, 장식)
+  dust: 0xecc48a,        // 밝은 모래/먼지
+  sandDark: 0xb98f63,    // 어두운 모래/자갈
+  shade: 0x55627d,       // 차가운 그늘 / 어두운 부품
+  copperDark: 0x8a4f32,  // 어두운 구리
+  copper: 0xe0974f,      // 밝은 구리·황동
+  grout: 0x6f6a85,       // 줄눈·그레인
+  sand: 0xe8b866,        // 햇볕에 마른 바닥 (모래·황토 베이지)
+  // ⚠️ 기능색: 게임 규칙과 직결, 변경 금지 (두 팔레트 동일)
+  cyan: COL_PS1.cyan,
+  amber: COL_PS1.amber,
+  green: COL_PS1.green,
+  red: COL_PS1.red,
+};
+
+/** 현재 스타일의 환경 팔레트 */
+export const COL: { [K in keyof typeof COL_PS1]: number } = isPS1 ? COL_PS1 : COL_LOWPOLY;
+
+/** 낮 하늘(로우폴리) 색은 settings.ts VISUAL.lowpoly.sky 에 있다 */
+/** PS1 노을 하늘 그라디언트 (위 → 지평선). 지평선 색은 VISUAL.fog.color 와 맞춘다 */
 export const SKY = {
   zenith: 0x1a1640,   // 짙은 남보라
   high: 0x2e2866,
@@ -46,23 +75,6 @@ export const CUES = {
   hazard: COL.red,
 } as const;
 
-export interface LambertOpts {
-  map?: THREE.Texture;
-  /** 가독성 단서용 발광색 (CUES) */
-  emissive?: number;
-  /** 발광 텍스처 (하늘돔 등: 조명 영향 없이 텍스처 색 그대로) */
-  emissiveMap?: THREE.Texture;
-  /** false 면 안개 무시(탈출 지점 표식 등 원거리에서도 보여야 하는 것) */
-  fog?: boolean;
-}
-
-/** 모든 메시의 기본 재질: Lambert + flatShading + 정점 스냅 */
-export function lambert(color: number, o: LambertOpts = {}) {
-  const m = new THREE.MeshLambertMaterial({
-    color, flatShading: true, emissive: o.emissive ?? 0x000000, fog: o.fog ?? true,
-    ...(o.map ? { map: o.map } : {}), // map: undefined 를 넘기면 three 가 경고한다
-    ...(o.emissiveMap ? { emissiveMap: o.emissiveMap } : {}),
-  });
-  patchRetro(m);
-  return m;
-}
+/** 재질 생성은 render/materials.ts 의 createMaterial 로 통일. 기존 이름 lambert 는 alias 로 유지한다 */
+export { createMaterial, createMaterial as lambert } from './materials';
+export type { MaterialOpts, MaterialOpts as LambertOpts } from './materials';

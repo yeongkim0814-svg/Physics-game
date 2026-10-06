@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { COL, lambert } from '../render/palette';
+import { COL } from '../render/palette';
+import { createMaterial } from '../render/materials';
 import { VISUAL } from '../config/settings';
 import { TUNING } from '../config/tuning';
 import { followFactor } from './cameraMath';
@@ -15,7 +16,7 @@ const V = VISUAL.character;
 export function placeholderCharacter(): CharacterModel {
   const root = new THREE.Group();
   const box = (w: number, h: number, d: number, color: number, x = 0, y = 0, z = 0, emissive = 0) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lambert(color, { emissive }));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), createMaterial(color, { emissive }));
     m.position.set(x, y, z);
     return m;
   };
@@ -68,8 +69,8 @@ export function placeholderCharacter(): CharacterModel {
   const weapon = new THREE.Group();
   weapon.position.y = -0.58;
   armR.add(weapon);
-  const tipMat = lambert(COL.shade, { emissive: 0x000000, fog: false });
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.42, 6), lambert(COL.copper));
+  const tipMat = createMaterial(COL.shade, { emissive: 0x000000, fog: false });
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.42, 6), createMaterial(COL.copper));
   barrel.position.y = -0.38;
   const tip = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06, 0), tipMat);
   tip.position.y = -0.62;

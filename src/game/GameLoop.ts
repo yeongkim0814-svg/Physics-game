@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { createPhysics } from '../core/physics';
 import { Input } from '../core/input';
 import { PlayerController } from '../player/PlayerController';
-import { RetroPipeline } from '../render/retro';
+import { createPipeline } from '../render/pipeline';
+import { ENV, isPS1 } from '../render/style';
+import { BlobShadow } from '../render/blobShadow';
 import { GameWorld } from '../world/GameWorld';
 import { Throwables } from '../world/Throwables';
 import { gameEvents } from '../core/events';
@@ -26,22 +28,22 @@ import { createPlayerCharacter } from '../player/CharacterModel';
  */
 export async function startGame(root: HTMLElement) {
   const world = await createPhysics();
-  const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-  const gfx = new RetroPipeline(renderer);
+  const renderer = new THREE.WebGLRenderer({ antialias: !isPS1 && PERF.antialias, powerPreference: 'high-performance' });
+  const gfx = createPipeline(renderer);
   root.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(VISUAL.fog.color);
-  scene.fog = new THREE.Fog(VISUAL.fog.color, VISUAL.fog.near, VISUAL.fog.far);
-  const L = VISUAL.lighting;
-  scene.add(new THREE.HemisphereLight(L.ambient, L.ambientGround, L.ambientIntensity));
+  scene.background = new THREE.Color(ENV.fog.color);
+  scene.fog = new THREE.Fog(ENV.fog.color, ENV.fog.near, ENV.fog.far);
+  const L = ENV.lighting;
+  scene.add(new THREE.HemisphereLight(L.sky, L.ground, L.hemiIntensity));
   const sun = new THREE.DirectionalLight(L.sun, L.sunIntensity);
   sun.position.set(...L.sunDir).multiplyScalar(L.sunDistance);
   scene.add(sun);
 
   const camera = new THREE.PerspectiveCamera(VISUAL.fov, 16 / 9, VISUAL.camera.near, VISUAL.camera.far);
   addEventListener('resize', () => {
-    gfx.setResolution(VISUAL.internalHeight, innerWidth / innerHeight);
+    gfx.setResolution(gfx.defaultHeight(), innerWidth / innerHeight);
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
   });
@@ -51,6 +53,7 @@ export async function startGame(root: HTMLElement) {
   const followCam = new ThirdPersonCamera(camera, world, player);
   const avatar = new PlayerAvatar(scene, player, followCam, createPlayerCharacter());
   avatar.snap();
+  const blob = isPS1 ? null : new BlobShadow(scene, world, player.body);
 
   let mobs: MobManager;
   const projectiles = new Projectiles(scene, world, player.body, () => mobs.targets());
@@ -139,6 +142,8 @@ export async function startGame(root: HTMLElement) {
     }
     arcs.update(dt);
     gameWorld.update(dt);
+    gameWorld.updateSky(camera, dt);
+    blob?.update(player.position);
     world.step();
     throwables.afterStep();
     gfx.render(scene, camera, now / 1000);
@@ -149,7 +154,7 @@ export async function startGame(root: HTMLElement) {
     if (accum >= 1) {
       const fps = frames / accum;
       overlays.setFps(fps, gfx.height);
-      if (PERF.autoResolution && cooldown <= 0 && fps < PERF.targetFps && gfx.height > VISUAL.minInternalHeight) {
+      if (PERF.autoResolution && cooldown <= 0 && fps < PERF.targetFps && gfx.height > gfx.minHeight) {
         gfx.setResolution(gfx.height * PERF.autoResolutionStep, innerWidth / innerHeight);
         cooldown = 3;
       }

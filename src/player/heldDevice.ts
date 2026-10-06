@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { COL, lambert } from '../render/palette';
+import { COL } from '../render/palette';
+import { createMaterial } from '../render/materials';
 
 /**
  * 손에 든 휴대 장치(운동량 사출기) 모델. 캐릭터 본체와 분리된 "부착물": 손 부착부(mount)에 group 을 붙이면 된다.
@@ -18,12 +19,12 @@ export interface HeldDevice {
 export function createHeldDevice(): HeldDevice {
   const group = new THREE.Group();
   const box = (w: number, h: number, d: number, color: number, x: number, y: number, z: number) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lambert(color));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), createMaterial(color));
     m.position.set(x, y, z);
     return m;
   };
-  const tipMat = lambert(COL.shade, { emissive: 0x000000, fog: false });
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.42, 6), lambert(COL.copper));
+  const tipMat = createMaterial(COL.shade, { emissive: 0x000000, fog: false });
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.42, 6), createMaterial(COL.copper));
   barrel.position.y = -0.38;
   const tip = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06, 0), tipMat);
   tip.position.y = -0.62;

@@ -3,7 +3,7 @@ import { RAPIER } from '../core/physics';
 import type { Damageable } from '../core/types';
 import { TUNING } from '../config/tuning';
 import { COL } from '../render/palette';
-import { lambert } from '../render/palette';
+import { createMaterial } from '../render/materials';
 import { projectileEnergy, segmentSphereToi } from './launcherMath';
 
 const L = TUNING.launcher;
@@ -23,7 +23,7 @@ export class Projectiles {
   private list: Projectile[] = [];
   private flashes: Flash[] = [];
   private geo = new THREE.IcosahedronGeometry(0.5, 0);
-  private flashMat = lambert(COL.amber, { emissive: COL.amber, fog: false });
+  private flashMat = createMaterial(COL.amber, { emissive: COL.amber, fog: false });
   /** 디버그/튜닝용: 마지막 착탄 위치 */
   lastImpact: THREE.Vector3 | null = null;
   hits = 0;
@@ -36,7 +36,7 @@ export class Projectiles {
   ) {}
 
   spawn(origin: THREE.Vector3, dir: THREE.Vector3, speed: number, mass: number, color: number) {
-    const mesh = new THREE.Mesh(this.geo, lambert(color, { emissive: COL.shade }));
+    const mesh = new THREE.Mesh(this.geo, createMaterial(color, { emissive: COL.shade }));
     mesh.scale.setScalar(0.07 * Math.cbrt(mass)); // 질량이 크면 굵게
     mesh.position.copy(origin);
     this.scene.add(mesh);

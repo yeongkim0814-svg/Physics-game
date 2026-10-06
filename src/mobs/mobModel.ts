@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { MobDef } from '../core/types';
-import { COL, CUES, lambert } from '../render/palette';
+import { COL, CUES } from '../render/palette';
+import { createMaterial } from '../render/materials';
 
 export interface MobModel {
   group: THREE.Group;
@@ -19,7 +20,7 @@ export function buildMobModel(def: MobDef): MobModel {
   const eyeMats: THREE.MeshLambertMaterial[] = [];
 
   const part = (geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number, emissive = 0) => {
-    const mat = lambert(color, { emissive });
+    const mat = createMaterial(color, { emissive });
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
     group.add(m);
@@ -28,7 +29,7 @@ export function buildMobModel(def: MobDef): MobModel {
   };
   const eyes = (y: number, z: number, spread: number) => {
     for (const sx of [-1, 1]) {
-      const mat = lambert(0x000000, { emissive: CUES.enemy });
+      const mat = createMaterial(0x000000, { emissive: CUES.enemy });
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.09, 0.05), mat);
       m.position.set(sx * spread, y, z);
       group.add(m);
@@ -37,7 +38,7 @@ export function buildMobModel(def: MobDef): MobModel {
   };
   /** 몸통을 두른 적 표시 띠 (기능색 red). 어느 방향에서도, 어두운 곳/올리브 배경에서도 적을 식별하고 공격 예고 때 밝아진다 */
   const band = (geo: THREE.BufferGeometry, y: number) => {
-    const mat = lambert(0x000000, { emissive: CUES.enemy });
+    const mat = createMaterial(0x000000, { emissive: CUES.enemy });
     const m = new THREE.Mesh(geo, mat);
     m.position.y = y;
     group.add(m);

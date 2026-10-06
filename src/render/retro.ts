@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VISUAL, PERF } from '../config/settings';
 import { retroUniforms } from './snap';
+import type { RenderPipeline } from './pipeline';
 
 const VERT = /* glsl */ `
 varying vec2 vUv;
@@ -61,13 +62,14 @@ void main() {
  * 저해상도(기본 480×270) 렌더 타깃에 색+깊이를 그리고, 후처리 패스로 캔버스에 옮긴다.
  * 캔버스 버퍼 자체가 저해상도이고 CSS(image-rendering: pixelated)가 확대한다.
  */
-export class RetroPipeline {
+export class RetroPipeline implements RenderPipeline {
   private rt: THREE.WebGLRenderTarget;
   private postScene = new THREE.Scene();
   private postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private mat: THREE.ShaderMaterial;
   width = 480;
   height = 270;
+  readonly minHeight = VISUAL.minInternalHeight;
 
   constructor(private renderer: THREE.WebGLRenderer) {
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
@@ -104,6 +106,8 @@ export class RetroPipeline {
     this.postScene.add(quad);
     this.setResolution(VISUAL.internalHeight, innerWidth / innerHeight);
   }
+
+  defaultHeight() { return VISUAL.internalHeight; }
 
   setPostprocess(on: boolean) { this.mat.uniforms.uPost.value = on ? 1 : 0; }
 
