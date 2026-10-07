@@ -146,6 +146,8 @@ export const PERF = {
   autoResolution: true,
   targetFps: 45,
   autoResolutionStep: 0.8,
+  /** 한 프레임 시뮬레이션 시간 상한(초): 탭 전환 등 긴 정지 뒤 한 번에 큰 스텝으로 지면을 통과하지 않게 */
+  maxDt: 0.05,
 } as const;
 
 /** 개발용 디버그 플래그 */

@@ -44,6 +44,7 @@
 | G3 | 저해상도 절차 텍스처(`render/texKit.ts` 아틀라스, `createMaterial` `tex` 옵션: 월드 좌표 트리플래너·Nearest·원거리 페이드) | done |
 | G9 | 청록 발광 기술(회로선 발광 마스크 = 장식 정적, 전도체 맥동, 수치 `VISUAL.lowpoly.tech`) | done |
 | G5 | 모듈 키트 부분(`world/techModules.ts` 기둥·아치·벽·링, 고원 바깥 시각 전용). 건축 확장은 A4 | doing |
+| H1 | 시작 직후 추락 수정: 첫 프레임 음수 dt 가 시간을 거꾸로 돌려 얇은 trimesh 지면을 통과 → `game/frameDt.ts` 로 dt 하한 0·상한 `PERF.maxDt` | done |
 | A3 | 아트 Phase 3 World Streaming (C5: 맵이 3×3 청크를 넘을 때) | todo |
 | A4~A8 | 아트 Phase 4 Environment · 5 Landmark · 6 Character 보강 · 7 Interaction · 8 Final Art Pass (C10: M2 통과 후 4 착수) | todo |
 | M1(b) | todo | todo |
