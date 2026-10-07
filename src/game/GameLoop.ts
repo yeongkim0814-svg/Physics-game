@@ -1,3 +1,4 @@
+import { frameDt } from './frameDt';
 import * as THREE from 'three';
 import { createPhysics } from '../core/physics';
 import { Input } from '../core/input';
@@ -113,7 +114,7 @@ export async function startGame(root: HTMLElement) {
   root.appendChild(hitFlash);
 
   renderer.setAnimationLoop((now) => {
-    const dt = Math.min((now - last) / 1000, 0.05);
+    const dt = frameDt(now, last, PERF.maxDt);
     last = now;
 
     if (weapons.length > 1 && input.weaponPressed) {
