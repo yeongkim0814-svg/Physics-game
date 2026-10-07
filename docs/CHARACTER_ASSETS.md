@@ -1,8 +1,8 @@
 # 캐릭터 외부 에셋 기록 (주인공)
 
-CLAUDE.md '외부 에셋 없음' 규칙의 **사용자 승인 예외**. 현재 주인공은 사용자가 준 도면을 스크립트로 변환한 **복셀 에셋**이고(M1j), 직전 구현(M1h 로프트 메시 + 얼굴 텍스처)은 폴백으로 남아 있다.
+CLAUDE.md '외부 에셋 없음' 규칙의 **사용자 승인 예외**. 현재 기본 주인공은 삼각형 로프트 메시(M1h 확장, 얼굴 텍스처 사용)이고, 사용자 도면을 스크립트로 변환한 **복셀 에셋**(M1j)은 `?char=voxel` 비교용으로 남아 있다.
 
-## 1. 복셀 주인공 (M1j, 기본)
+## 1. 복셀 주인공 (M1j, `?char=voxel` 비교용)
 
 - 파일: `src/assets/protagonist_voxels.json` (약 12KB: 팔레트 + RLE(varint+base64) + 관절 피벗). Vite 가 JSON import 로 번들한다.
 - 출처: 사용자가 제공한 주인공 도면(1536x1024 PNG, 정면·오른쪽 측면·후면 3컷). 원본 PNG 는 용량 때문에 repo 에 넣지 않고, 확인용 축소본(가로 1280px JPEG)만 `docs/reference/character_turnaround.jpg` 에 둔다 (빌드 미포함).
@@ -13,7 +13,7 @@ CLAUDE.md '외부 에셋 없음' 규칙의 **사용자 승인 예외**. 현재 �
   # 실험용 덮어쓰기: --height N --colors N --median K --smooth N
   ```
   `--debug` 는 마스크 오버레이(`mask_*.png`), 부위 분할 투영(`parts_*.png`), 카빙 결과 투영(`carve_*.png`)을 저장한다.
-- 런타임: `src/player/voxelCharacter.ts` (`createPlayerCharacter()` 의 기본 반환). 폴백 전환: URL `?char=legacy` 또는 `VISUAL.characterModel = 'legacy'`.
+- 런타임: `src/player/voxelCharacter.ts` (`?char=voxel` 또는 `VISUAL.characterModel = 'voxel'` 일 때 반환). 기본은 삼각형 로프트 `protagonistCharacter`.
 
 ### 1-1. 파이프라인과 파라미터 (스크립트 상단 상수와 동일)
 
@@ -60,7 +60,7 @@ CLAUDE.md '외부 에셋 없음' 규칙의 **사용자 승인 예외**. 현재 �
 
 ## 2. 얼굴 텍스처 (M1h, 폴백 전용)
 
-`?char=legacy` 폴백(로프트 메시 주인공)이 쓴다. 복셀 주인공은 쓰지 않는다 — 폴백을 삭제하기 전까지 유지한다.
+기본 로프트 메시 주인공이 쓴다. 복셀 주인공은 쓰지 않는다.
 
 - 파일: `src/assets/protagonist_face.png` (128x128 PNG, 약 21KB). Vite 가 `import` 로 번들하며 `base: './'` 라 GitHub Pages 상대경로에서도 로드된다.
 - 출처: 사용자가 제공한 주인공 캐릭터 시트 일러스트(1254x1254 PNG) 의 EXPRESSIONS '기본(평온)' 컷. 원본 PNG 는 용량 때문에 repo 에 넣지 않는다.

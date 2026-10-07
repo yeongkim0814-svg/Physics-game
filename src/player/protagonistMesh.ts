@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import {
-  CHEST, CROWN_SPIKES, FACE_TEX, FOREARM, FRINGE, FRINGE_BASE, HEAD, NOSE, PCOL, SHIN, THIGH, TORSO, UPPER_ARM, WATCH, WATCH_FACE,
+  BACK_HAIR, CHEST, CROWN_SPIKES, FACE_TEX, FOREARM, FRINGE, FRINGE_BASE, HEAD, NOSE, PCOL, SHIN, THIGH, TORSO, UPPER_ARM, WATCH, WATCH_FACE,
   type BoxSpec, type GroupSpec, type LoftSpec,
 } from '../data/protagonist';
-import { MeshBuilder, type ShadeOpts, type V3 } from '../render/meshBuilder';
+import { MeshBuilder, smoothRings, type ShadeOpts, type V3 } from '../render/meshBuilder';
 
 /**
  * 주인공 지오메트리 (순수 THREE 지오메트리 — canvas 없이 테스트 가능).
@@ -52,7 +52,7 @@ function buildGroup(spec: GroupSpec, b: Builders, side: 1 | -1, extra: { head?: 
       target.setMatrix(loftMatrix(l, s));
       b.face.setMatrix(loftMatrix(l, s));
       const isSkull = extra.head && l.name === 'skull';
-      target.loft(l.rings, {
+      target.loft(l.smooth ? smoothRings(l.rings, l.smooth) : l.rings, {
         sides: l.sides, offsetDeg: l.offsetDeg, capBottom: l.capBottom, capTop: l.capTop, innerAO: l.innerAO, jitter: l.jitter,
         uvTile: l.channel === 'cloth' ? L.fabricTile : 0,
         // 두개골 정면 5면 × 얼굴 링 구간 → 얼굴 채널 (k = 9,10,11,0,1: 앞쪽 6정점 사이)
@@ -105,6 +105,10 @@ function buildHead(exposure: number): GroupGeo {
   for (const c of CROWN_SPIKES) {
     const y0 = 0.262;
     b.plain.pyramid([[c.x - c.w / 2, y0, c.z], [c.x + c.w / 2, y0, c.z], [c.x, y0, c.z + c.w * 0.8]], [c.x, c.tipY, c.tipZ], PCOL.hairLight, [0.9, 1]);
+  }
+  // 뒤통수 아랫머리
+  for (const h of BACK_HAIR) {
+    b.plain.pyramid([[h.x - h.w / 2, h.y, 0.108], [h.x + h.w / 2, h.y, 0.108], [h.x, h.y + 0.014, 0.12]], [h.x, h.y - 0.05, 0.13], PCOL.hair, [0.8, 1]);
   }
   return finish(b);
 }

@@ -44,9 +44,9 @@ describe('MeshBuilder', () => {
 
 describe('protagonist geometry', () => {
   const g = buildProtagonistGeometry(1);
-  it('캐릭터 몸 삼각형 1,500~3,000 (장치 제외)', () => {
-    expect(g.triangles).toBeGreaterThan(1500);
-    expect(g.triangles).toBeLessThanOrEqual(2800); // 장치 약 60 + 여유를 두고 3,000 이하
+  it('캐릭터 몸 삼각형 4,000~9,000 (장치 제외): 12각 단면 + 곡선 보간 링 + 3D 디테일', () => {
+    expect(g.triangles).toBeGreaterThan(4000);
+    expect(g.triangles).toBeLessThanOrEqual(9000);
   });
   it('얼굴 채널 UV 는 얼굴 텍스처 범위(0..1) 안', () => {
     const uv = g.head.face!.attributes.uv;

@@ -29,6 +29,7 @@ export const PCOL = {
   device: 0x24232b,      // 휴대 장치 본체
   deviceScreen: 0x0d0e14, // 장치 화면
   cyan: 0x6fe6dc,        // 장치 청록 발광 표시
+  lensGlint: 0xcfe9ec,   // 안경 렌즈 반사 (옅은 청백)
 } as const;
 
 /** 관절 위치 (부모 그룹 기준, m) */
@@ -82,6 +83,8 @@ export interface LoftSpec {
   mirror?: boolean;
   /** 띠 재질 명도에 더하는 면 지터 진폭 (기본 VISUAL.character.look.faceJitter) */
   jitter?: number;
+  /** 링 사이 곡선 보간 배수 (2 = 링마다 사이에 하나 추가). 없으면 정의한 링 그대로 */
+  smooth?: number;
 }
 
 export interface BoxSpec {
@@ -103,8 +106,53 @@ const C = PCOL;
 const OCT = 22.5; // 8각: 앞면이 평평
 const HEX = 30;   // 6각
 
+/**
+ * 삼각형 밀도 업그레이드: 8각(OCT)·6각(HEX) 로프트를 12각·10각으로 올리고 링 사이에 곡선 보간 링을 끼운다.
+ * 정면 평면과 어깨 폭이 같도록 반경을 보정한다: 8각 정면 z = rz·cos22.5° → 12각 rz·cos15°, 6각은 cos30° → 10각 cos18°.
+ * (x 방향은 8각 극점이 67.5° 라 rx·sin67.5° → 12각 rx·sin75°, 6각은 90° 에 꼭짓점이 있어 그대로)
+ */
+const K8_TO_12 = Math.cos((22.5 * Math.PI) / 180) / Math.cos((15 * Math.PI) / 180);
+const K6_TO_10 = Math.cos((30 * Math.PI) / 180) / Math.cos((18 * Math.PI) / 180);
+const KX8_TO_12 = Math.sin((67.5 * Math.PI) / 180) / Math.sin((75 * Math.PI) / 180);
+const KEEP_COARSE = new Set(['ear', 'thumb']);
+function refine(g: GroupSpec): GroupSpec {
+  const lofts = g.lofts.map((l): LoftSpec => {
+    if (KEEP_COARSE.has(l.name) || l.smooth !== undefined) return l;
+    if (l.sides === 8 && l.offsetDeg === OCT) {
+      return { ...l, sides: 12, offsetDeg: 15, smooth: 2, rings: l.rings.map((r) => ({ ...r, rx: r.rx * KX8_TO_12, rz: r.rz * K8_TO_12 })) };
+    }
+    if (l.sides === 6 && l.offsetDeg === HEX) {
+      return { ...l, sides: 10, offsetDeg: 18, smooth: 2, rings: l.rings.map((r) => ({ ...r, rz: r.rz * K6_TO_10 })) };
+    }
+    return l;
+  });
+  return { ...g, lofts };
+}
+
+const rad = (deg: number) => (deg * Math.PI) / 180;
+/** 타원 둘레 위의 점 (앞 = -z, 각도 0 = 정면) */
+const ellipsePt = (rx: number, rz: number, deg: number): [number, number] => [rx * Math.sin(rad(deg)), -rz * Math.cos(rad(deg))];
+
+/** 벨트 고리: 허리 둘레를 따라 놓은 얇은 박스 (몸통 로컬) */
+const BELT_LOOPS: BoxSpec[] = [-150, -112, -64, -26, 26, 64, 112, 150].map((deg, i) => {
+  const [x, z] = ellipsePt(0.19, 0.131, deg);
+  return { name: `beltLoop${i}`, size: [0.016, 0.07, 0.012], pos: [x, 0.073, z], rot: [0, -rad(deg), 0], color: PCOL.belt, channel: 'plain', ao: [0.85, 1] };
+});
+
+/** 안경테: 렌즈 둘레 팔각 박스 8개(좌우 미러) + 코다리 + 렌즈 반사. 머리 로컬, 얼굴 앞면 z≈-0.094 */
+const LENS = { x: 0.034, y: 0.128, z: -0.0955, r: 0.0215 };
+const GLASSES: BoxSpec[] = [
+  ...Array.from({ length: 8 }, (_, i): BoxSpec => {
+    const a = (i * 360) / 8 + 22.5;
+    const x = LENS.x + LENS.r * Math.sin(rad(a)), y = LENS.y + LENS.r * Math.cos(rad(a));
+    return { name: `rim${i}`, size: [0.0175, 0.0042, 0.0045], pos: [x, y, LENS.z], rot: [0, 0, -rad(a)], color: PCOL.frame, channel: 'plain', mirror: true };
+  }),
+  { name: 'bridge', size: [0.02, 0.004, 0.0045], pos: [0, LENS.y + 0.008, LENS.z - 0.001], color: PCOL.frame, channel: 'plain' },
+  { name: 'lensGlint', size: [0.007, 0.007, 0.002], pos: [LENS.x - 0.008, LENS.y + 0.008, LENS.z - 0.002], rot: [0, 0, 0.785], color: PCOL.lensGlint, channel: 'plain', mirror: true },
+];
+
 // ───────────────────────── 몸통 (엉덩이~허리, 피벗 = 엉덩이) ─────────────────────────
-export const TORSO: GroupSpec = {
+export const TORSO: GroupSpec = refine({
   lofts: [{
     name: 'torso', sides: 8, offsetDeg: OCT, channel: 'cloth', capBottom: true, capTop: false,
     rings: [
@@ -114,8 +162,19 @@ export const TORSO: GroupSpec = {
       { y: 0.115, rx: 0.178, rz: 0.114, c: C.shirt, ao: 0.82 },         // 벨트 위 / 셔츠 밑단이 들어감
       { y: 0.25, rx: 0.186, rz: 0.116, c: C.shirt, ao: 1 },
     ],
+  }, {
+    // 벨트: 몸통 위로 살짝 도톰하게 두른 띠 (고리·버클이 얹힌다)
+    name: 'belt', sides: 12, offsetDeg: 15, channel: 'plain', capBottom: true, capTop: true,
+    rings: [
+      { y: 0.045, rx: 0.19, rz: 0.1258, c: C.belt, ao: 0.85 },
+      { y: 0.1, rx: 0.19, rz: 0.1258, c: C.belt, ao: 1 },
+    ],
   }],
   boxes: [
+    ...BELT_LOOPS,
+    { name: 'pouchR2', size: [0.05, 0.07, 0.05], pos: [0.19, -0.005, 0.14], color: C.belt, channel: 'plain', ao: [0.75, 1] },
+    { name: 'pouchR2Lid', size: [0.054, 0.022, 0.054], pos: [0.19, 0.03, 0.14], color: C.beltLight, channel: 'plain', ao: [0.85, 1] },
+    { name: 'pouchStrap', size: [0.012, 0.04, 0.012], pos: [-0.208, 0.0, 0.112], color: C.beltLight, channel: 'plain' },
     // 버클 (앞 중앙) + 버클 안쪽 홈
     { name: 'buckle', size: [0.052, 0.05, 0.014], pos: [0, 0.075, -0.121], color: C.buckle, channel: 'plain', ao: [0.8, 1] },
     { name: 'buckleHole', size: [0.03, 0.028, 0.016], pos: [0, 0.075, -0.1215], color: C.belt, channel: 'plain' },
@@ -130,10 +189,10 @@ export const TORSO: GroupSpec = {
     { name: 'pouchR1', size: [0.044, 0.09, 0.07], pos: [0.208, -0.01, 0.07], color: C.belt, channel: 'plain', ao: [0.75, 1] },
     { name: 'pouchR1Lid', size: [0.048, 0.03, 0.074], pos: [0.208, 0.03, 0.07], color: C.beltLight, channel: 'plain', ao: [0.85, 1] },
   ],
-};
+});
 
 // ───────────────────────── 가슴 (피벗 = 가슴 아래, 숨쉬기 스케일) ─────────────────────────
-export const CHEST: GroupSpec = {
+export const CHEST: GroupSpec = refine({
   lofts: [
     {
       name: 'chest', sides: 8, offsetDeg: OCT, channel: 'cloth', capBottom: false, capTop: false,
@@ -155,7 +214,10 @@ export const CHEST: GroupSpec = {
     },
   ],
   boxes: [
-    // 앞면은 평평한 8각 면: z = -rz × cos(22.5°) ≈ -0.113
+    // 앞면은 평평한 면: z ≈ -0.113 (12각으로 올려도 반경 보정으로 같은 평면)
+    { name: 'pocketFlap', size: [0.082, 0.022, 0.012], pos: [-0.088, 0.168, -0.1155], color: C.shirtDark, channel: 'plain', ao: [0.85, 1] },
+    { name: 'wrinkleLow', size: [0.085, 0.007, 0.012], pos: [0.065, 0.07, -0.1125], rot: [0, 0, -0.38], color: C.shirtDark, channel: 'plain', mirror: true },
+    { name: 'wrinkleHigh', size: [0.075, 0.007, 0.012], pos: [0.07, 0.19, -0.1125], rot: [0, 0, 0.45], color: C.shirtDark, channel: 'plain', mirror: true },
     { name: 'placket', size: [0.014, 0.28, 0.012], pos: [0, 0.14, -0.114], color: C.shirtDark, channel: 'plain', ao: [0.9, 1] },
     { name: 'button1', size: [0.012, 0.012, 0.014], pos: [0, 0.22, -0.117], color: C.shirtDark, channel: 'plain' },
     { name: 'button2', size: [0.012, 0.012, 0.014], pos: [0, 0.14, -0.117], color: C.shirtDark, channel: 'plain' },
@@ -168,7 +230,7 @@ export const CHEST: GroupSpec = {
     // 칼라 날개: 목 양옆에서 앞으로 접힌 삼각 면
     { name: 'collarFlap', size: [0.06, 0.05, 0.012], pos: [0.052, 0.34, -0.088], color: C.shirt, channel: 'plain', rot: [0.55, 0, -0.5], mirror: true, ao: [0.85, 1] },
   ],
-};
+});
 
 // ───────────────────────── 머리 (피벗 = 턱 아래 목 위) ─────────────────────────
 /** 얼굴 텍스처 → 두개골 정면 투영 UV. 크롭 원본 크기와 m/px 로 정한다 (docs/CHARACTER_ASSETS.md) */
@@ -182,7 +244,7 @@ export const FACE_TEX = {
 } as const;
 
 /** 두개골 12각 링. 앞 6정점(±15°, ±45°, ±75°) 면이 얼굴 텍스처 면 */
-export const HEAD: GroupSpec = {
+export const HEAD: GroupSpec = refine({
   lofts: [
     {
       name: 'skull', sides: 12, offsetDeg: 15, channel: 'plain', capBottom: true, capTop: true, jitter: 0.02,
@@ -226,11 +288,15 @@ export const HEAD: GroupSpec = {
     },
   ],
   boxes: [
+    ...GLASSES,
+    { name: 'brow', size: [0.04, 0.0075, 0.01], pos: [0.036, 0.155, -0.0935], rot: [0, 0, 0.1], color: C.hair, channel: 'plain', mirror: true },
+    { name: 'lips', size: [0.03, 0.006, 0.008], pos: [0, 0.067, -0.0875], color: C.skinShade, channel: 'plain' },
+    { name: 'sideburn', size: [0.008, 0.045, 0.026], pos: [0.073, 0.135, -0.034], color: C.hair, channel: 'plain', mirror: true },
     // 안경 다리(템플): 렌즈 바깥 모서리에서 귀로. 테·렌즈는 얼굴 텍스처에 있고, 옆모습에서 읽히게 하는 3D 부분
     { name: 'temple', size: [0.004, 0.005, 0.062], pos: [0.0765, 0.128, -0.012], color: C.frame, channel: 'plain', mirror: true, rot: [0, 0.14, 0] },
     { name: 'templeHook', size: [0.004, 0.022, 0.005], pos: [0.081, 0.117, 0.017], color: C.frame, channel: 'plain', mirror: true },
   ],
-};
+});
 
 /** 코: 얼굴 텍스처 면에 붙는 작은 쐐기 (얼굴 채널, 정면 투영 UV). [윗끝, 코끝, 좌 밑, 우 밑] */
 export const NOSE: readonly V3[] = [
@@ -244,6 +310,11 @@ export const FRINGE: readonly { x: number; tipY: number; w: number; tipZ: number
   { x: 0.024, tipY: 0.192, w: 0.026, tipZ: -0.097 },
   { x: -0.066, tipY: 0.14, w: 0.024, tipZ: -0.08 },
   { x: 0.062, tipY: 0.16, w: 0.022, tipZ: -0.078 },
+  { x: 0.045, tipY: 0.176, w: 0.026, tipZ: -0.094 },
+  { x: -0.03, tipY: 0.17, w: 0.022, tipZ: -0.1 },
+  { x: 0.008, tipY: 0.19, w: 0.02, tipZ: -0.1 },
+  { x: -0.058, tipY: 0.155, w: 0.02, tipZ: -0.088 },
+  { x: 0.07, tipY: 0.148, w: 0.02, tipZ: -0.074 },
 ];
 /** 윗머리 뾰족한 결: 정수리에서 위·뒤로 솟은 삼각뿔 (머리 로컬). [x, 시작 z, 끝 y, 끝 z, 폭] */
 export const CROWN_SPIKES: readonly { x: number; z: number; tipY: number; tipZ: number; w: number }[] = [
@@ -251,13 +322,23 @@ export const CROWN_SPIKES: readonly { x: number; z: number; tipY: number; tipZ: 
   { x: 0.02, z: -0.04, tipY: 0.288, tipZ: -0.06, w: 0.04 },
   { x: 0.0, z: 0.02, tipY: 0.29, tipZ: 0.04, w: 0.045 },
   { x: -0.045, z: 0.03, tipY: 0.282, tipZ: 0.05, w: 0.04 },
+  { x: -0.06, z: 0.0, tipY: 0.274, tipZ: -0.012, w: 0.036 },
+  { x: 0.055, z: 0.0, tipY: 0.276, tipZ: -0.008, w: 0.036 },
+  { x: 0.04, z: 0.045, tipY: 0.278, tipZ: 0.062, w: 0.036 },
+  { x: 0.065, z: 0.03, tipY: 0.268, tipZ: 0.04, w: 0.034 },
+];
+
+/** 뒤통수 아랫머리 가닥: 뒤 머리선에서 아래·뒤로 늘어진 삼각뿔. [x, 밑면 y, 폭] (끝 = 밑면 y - 0.05, 뒤로 0.02) */
+export const BACK_HAIR: readonly { x: number; y: number; w: number }[] = [
+  { x: -0.06, y: 0.13, w: 0.03 }, { x: -0.035, y: 0.115, w: 0.03 }, { x: -0.012, y: 0.105, w: 0.03 }, { x: 0.012, y: 0.105, w: 0.03 },
+  { x: 0.035, y: 0.115, w: 0.03 }, { x: 0.06, y: 0.13, w: 0.03 }, { x: -0.075, y: 0.17, w: 0.028 }, { x: 0.075, y: 0.17, w: 0.028 },
 ];
 
 /** 앞머리 가닥 시작 높이 / 시작 z */
 export const FRINGE_BASE = { y: 0.215, z: -0.1 } as const;
 
 // ───────────────────────── 팔다리 (오른쪽 기준으로 정의, 왼쪽은 x 미러) ─────────────────────────
-export const THIGH: GroupSpec = {
+export const THIGH: GroupSpec = refine({
   lofts: [{
     name: 'thigh', sides: 8, offsetDeg: OCT, channel: 'cloth', capTop: false, capBottom: false, innerAO: 0.16,
     rings: [
@@ -268,10 +349,15 @@ export const THIGH: GroupSpec = {
       { y: -0.465, rx: 0.083, rz: 0.087, c: C.slacks, ao: 0.7 },        // 무릎 접힘
     ],
   }],
-  boxes: [],
-};
+  boxes: [
+    { name: 'sideSeam', size: [0.006, 0.4, 0.016], pos: [0.092, -0.2, 0.0], color: C.slacksDark, channel: 'plain', ao: [0.9, 1] },
+    { name: 'crease', size: [0.008, 0.38, 0.008], pos: [0, -0.22, -0.0975], color: C.slacksDark, channel: 'plain' },
+    { name: 'cargo', size: [0.014, 0.1, 0.085], pos: [0.094, -0.16, -0.005], color: C.slacksDark, channel: 'plain', onlySide: 1, ao: [0.8, 1] },
+    { name: 'cargoFlap', size: [0.016, 0.03, 0.09], pos: [0.095, -0.105, -0.005], color: C.slacks, channel: 'plain', onlySide: 1 },
+  ],
+});
 
-export const SHIN: GroupSpec = {
+export const SHIN: GroupSpec = refine({
   lofts: [
     {
       name: 'shin', sides: 8, offsetDeg: OCT, channel: 'cloth', capTop: false, capBottom: false, innerAO: 0.12,
@@ -302,14 +388,32 @@ export const SHIN: GroupSpec = {
         { y: 0.22, rx: 0.046, rz: 0.034, cz: -0.446, c: C.boot, ao: 0.85 },   // 앞코
       ],
     },
+    {
+      // 바지 단: 부츠 위로 접어 올린 두꺼운 밑단
+      name: 'cuffRoll', sides: 12, offsetDeg: 15, channel: 'cloth', capTop: false, capBottom: false,
+      rings: [
+        { y: -0.255, rx: 0.093, rz: 0.1, c: C.slacksDark, ao: 0.9 },
+        { y: -0.3, rx: 0.098, rz: 0.106, c: C.slacksDark, ao: 0.8 },
+      ],
+    },
+    {
+      // 부츠 발목 가죽 띠
+      name: 'bootStrap', sides: 12, offsetDeg: 15, channel: 'plain', capTop: false, capBottom: false,
+      rings: [
+        { y: -0.345, rx: 0.0735, rz: 0.0815, c: C.beltLight, ao: 0.9 },
+        { y: -0.372, rx: 0.0745, rz: 0.083, cz: -0.002, c: C.beltLight, ao: 0.85 },
+      ],
+    },
   ],
   boxes: [
+    { name: 'strapBuckle', size: [0.022, 0.028, 0.012], pos: [0, -0.358, -0.0835], color: C.buckle, channel: 'plain' },
+    { name: 'bootWelt', size: [0.13, 0.008, 0.318], pos: [0, -0.452, -0.07], color: C.beltLight, channel: 'plain', ao: [0.7, 1] },
     { name: 'sole', size: [0.124, 0.024, 0.31], pos: [0, -0.468, -0.07], color: C.bootDark, channel: 'plain', ao: [0.7, 1] },
     { name: 'tongue', size: [0.05, 0.02, 0.07], pos: [0, -0.404, -0.06], color: C.beltLight, channel: 'plain', rot: [0.35, 0, 0], ao: [0.8, 1] },
   ],
-};
+});
 
-export const UPPER_ARM: GroupSpec = {
+export const UPPER_ARM: GroupSpec = refine({
   lofts: [{
     name: 'sleeve', sides: 8, offsetDeg: OCT, channel: 'cloth', capTop: false, capBottom: true, innerAO: 0.2,
     rings: [
@@ -321,11 +425,19 @@ export const UPPER_ARM: GroupSpec = {
       { y: -0.235, rx: 0.07, rz: 0.072, c: C.shirtDark, ao: 0.78 },       // 걷어 올린 소매 접힘 (두꺼운 단)
       { y: -0.315, rx: 0.067, rz: 0.069, c: C.shirt, ao: 0.62 },
     ],
+  }, {
+    // 걷어 올린 소매 둘레의 도톰한 능선
+    name: 'rollRidge', sides: 12, offsetDeg: 15, channel: 'cloth', capTop: false, capBottom: false,
+    rings: [
+      { y: -0.245, rx: 0.0775, rz: 0.0805, c: C.shirt, ao: 0.9 },
+      { y: -0.275, rx: 0.0785, rz: 0.0815, c: C.shirtDark, ao: 0.7 },
+      { y: -0.305, rx: 0.0745, rz: 0.077, c: C.shirt, ao: 0.65 },
+    ],
   }],
   boxes: [],
-};
+});
 
-export const FOREARM: GroupSpec = {
+export const FOREARM: GroupSpec = refine({
   lofts: [
     {
       name: 'forearm', sides: 6, offsetDeg: HEX, channel: 'plain', capTop: false, capBottom: false, innerAO: 0.1,
@@ -365,7 +477,7 @@ export const FOREARM: GroupSpec = {
     },
   ],
   boxes: [],
-};
+});
 
 /** 왼쪽 손목 시계: 손목 바깥면에 붙는 케이스 (오른쪽 기준 좌표의 바깥 = +x; onlySide 로 왼쪽만) */
 export const WATCH: BoxSpec = {

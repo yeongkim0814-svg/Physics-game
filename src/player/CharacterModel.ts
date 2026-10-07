@@ -38,28 +38,28 @@ export interface CharacterModel {
 }
 
 /**
- * 캐릭터 모델 선택: 기본 VISUAL.characterModel, 브라우저에서는 URL `?char=legacy|voxel` 로 덮어쓴다 (비교·롤백용).
+ * 캐릭터 모델 선택: 기본 VISUAL.characterModel, 브라우저에서는 URL `?char=loft|voxel` 로 덮어쓴다 (비교용).
  */
-export function resolveCharacterModel(): 'voxel' | 'legacy' {
+export function resolveCharacterModel(): 'voxel' | 'loft' {
   try {
     if (typeof location !== 'undefined') {
       const q = new URLSearchParams(location.search).get('char');
-      if (q === 'legacy' || q === 'voxel') return q;
+      if (q === 'loft' || q === 'voxel') return q;
     }
   } catch { /* 검색 문자열을 못 읽으면 기본값 */ }
   return VISUAL.characterModel;
 }
 
 /**
- * 교체 지점: 기본은 도면 복셀 카빙 주인공(voxelCharacter, M1j). `?char=legacy` 또는 VISUAL.characterModel='legacy' 면 M1h 로프트 메시(protagonistCharacter).
- * 생성에 실패하면(캔버스 없는 환경 등) 한 단계씩 폴백: voxel → legacy → placeholder.
+ * 교체 지점: 기본은 삼각형 로프트 주인공(protagonistCharacter). `?char=voxel` 또는 VISUAL.characterModel='voxel' 이면 복셀 카빙(voxelCharacter).
+ * 생성에 실패하면(캔버스 없는 환경 등) 한 단계씩 폴백: voxel → loft → placeholder.
  */
 export function createPlayerCharacter(): CharacterModel {
   if (resolveCharacterModel() === 'voxel') {
     try {
       return voxelCharacter();
     } catch (e) {
-      console.warn('voxelCharacter 생성 실패, legacy 주인공으로 대체', e);
+      console.warn('voxelCharacter 생성 실패, loft 주인공으로 대체', e);
     }
   }
   try {

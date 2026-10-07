@@ -57,10 +57,10 @@ export const VISUAL = {
     desat: { regions: [] as [number, number, number, number][], softness: 0.5, landmarkBase: 0.88 },
     /** 저해상도 절차 텍스처 (G3, render/texKit.ts): 월드 좌표 트리플래너, NearestFilter. size = 한 장 한 변 px, tile = 한 장이 덮는 월드 길이(m), amp = 알베도 변조 강도.
      * 밉맵이 없어 멀리서 반짝이므로 fadeNear~fadeEnd(m) 사이에서 변조를 0 으로, 발광선은 평균 glowAvg 로 수렴시킨다 */
-    texture: { size: 32, seed: 7, amp: 0.3, terrainTile: 6, metalTile: 3, techTile: 4, fadeNear: 45, fadeEnd: 150, glowAvg: 0.3 },
+    texture: { size: 32, seed: 7, amp: 0.3, terrainTile: 6, metalTile: 3, techTile: 4, fadeNear: 45, fadeEnd: 150, glowAvg: 0.06 },
     /** 청록 발광 기술 (G9). 장식(선만, 정적·약함)과 전도체 단서(면 전체, 맥동·더 밝음)를 구분한다 */
     tech: {
-      decorColor: 0x46b4cf, decorGlow: 1.0,
+      decorColor: 0x46b4cf, decorGlow: 0.35,
       /** 전도체 맥동: 평상시 발광 × (1 ± amp·sin(2π·rate·t)) */
       conductorPulse: { amp: 0.35, rate: 0.6 },
       /** 기술 모듈 키트 (G5, world/techModules.ts): 고원 바깥 시각 전용 배치 */
@@ -70,17 +70,17 @@ export const VISUAL = {
     conductorGlow: 0.3,
   },
   /**
-   * 주인공 모델 선택 (M1j): 'voxel' = 도면 복셀 카빙(player/voxelCharacter.ts, 기본) / 'legacy' = M1h 로프트 메시(폴백, 사용자 승인 전까지 유지).
-   * URL `?char=legacy|voxel` 로 덮어쓸 수 있다 (모듈 로드 시 한 번 결정).
+   * 주인공 모델 선택: 'loft' = 삼각형 로프트 메시(player/protagonistCharacter.ts, 기본: 링 단면을 곡선 보간한 로우폴리 + 3D 디테일) /
+   * 'voxel' = 도면 복셀 카빙(player/voxelCharacter.ts, 사각 면 위주라 비교용). URL `?char=loft|voxel` 로 덮어쓸 수 있다 (모듈 로드 시 한 번 결정).
    */
-  characterModel: 'voxel' as 'voxel' | 'legacy',
+  characterModel: 'loft' as 'loft' | 'voxel',
   /** 복셀 주인공 (data: src/assets/protagonist_voxels.json, 생성: scripts/carve_character.py). 자세 계산은 아래 `character` 를 재사용하고 일부만 덮어쓴다 */
   voxelCharacter: {
     /** 복셀 AO: 가림 이웃 수 0(완전 가림)..3(가림 없음) → 정점색 배율 */
     aoCurve: [0.6, 0.74, 0.88, 1] as [number, number, number, number],
     /** AO 를 면 단위(꼭짓점 평균)로 통일: 같은 색 면의 병합이 늘어 삼각형이 크게 준다. false = 꼭짓점별(부드럽지만 약 2배 삼각형) */
     aoPerFace: true,
-    /** 정점색 배율 = 시간대 프리셋 character.exposure × 이 값 (도면 색은 이미 때 탄 어두운 톤이라 legacy 보다 높게). */
+    /** 정점색 배율 = 시간대 프리셋 character.exposure × 이 값 (도면 색은 이미 때 탄 어두운 톤이라 loft 보다 높게). */
     exposureScale: 1.19,
     /** 도면의 직립 자세에 맞춘 기본 자세 덮어쓰기 (공통 character 값 위에 얹는다) */
     pose: { restLean: 0.03, kneeRest: 0.04, armRestOut: 0, leftElbowRest: 0.1, leftArmRest: 0.0, restArm: 0.15, weaponElbowRest: 0.25 },
