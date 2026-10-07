@@ -47,6 +47,7 @@
 | H1 | 시작 직후 추락 수정: 첫 프레임 음수 dt 가 시간을 거꾸로 돌려 얇은 trimesh 지면을 통과 → `game/frameDt.ts` 로 dt 하한 0·상한 `PERF.maxDt` | done |
 | C1 | 주인공 삼각형 메시 강화: 기본을 복셀→로프트로 전환(`?char=loft|voxel`), 12각/10각 단면 + PCHIP 보간 링 + 3D 디테일로 ≈1,900 → ≈4,700 tri | done |
 | T1 | 지형·건물 삼각형 패싯: 공용 `world/facet.ts`(불규칙 삼각 분할·안쪽 정점 흔들림·측면 안쪽 패임·걸을 수 없는 윗면 기복·삼각형별 색), 충돌 메시 불변 | done |
+| T2 | 지형 굴곡: 고원 릴리프(렌더=충돌 삼각형 격자, 건물/패드 주변 0), 바깥 연속 변위, 절벽 경사(talus), 색은 경사(조명)에서 — `docs/TERRAIN.md` | done |
 | A3 | 아트 Phase 3 World Streaming (C5: 맵이 3×3 청크를 넘을 때) | todo |
 | A4~A8 | 아트 Phase 4 Environment · 5 Landmark · 6 Character 보강 · 7 Interaction · 8 Final Art Pass (C10: M2 통과 후 4 착수) | todo |
 | M1(b) | todo | todo |

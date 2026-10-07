@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { addStaticBox, addStaticTrimesh, RAPIER } from '../core/physics';
 import type { Conductor } from '../core/types';
-import { MAP, type BlockDef, type BlockKind } from '../data/map';
+import { MAP, TERRAIN_DATA, type BlockDef, type BlockKind } from '../data/map';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { COL, CUES } from '../render/palette';
 import { createMaterial } from '../render/materials';
@@ -184,7 +184,7 @@ export class GameWorld {
     const S = MAP.size, H = MAP.wallHeight;
     const floorMat = this.batched(createMaterial(COL.sand, { vertexColors: true }));
     // 계단형 하이트필드: 고원·협곡·고원 바깥 계곡/메사/산맥. 충돌 = 렌더와 일치하는 정적 trimesh (외곽 벽 안쪽만), 원거리 링은 시각 전용
-    const field = createTerrainField(TERRAIN_FIELD, { canyon: MAP.canyon, ...MAP.terrain });
+    const field = createTerrainField(TERRAIN_FIELD, TERRAIN_DATA);
     this.terrainField = field;
     this.terrainStats.fieldMs = field.buildMs;
     const t0 = performance.now();

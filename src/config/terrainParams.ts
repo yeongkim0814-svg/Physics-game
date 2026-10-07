@@ -15,17 +15,21 @@ export const TERRAIN_FIELD: TerrainParams = {
   bluff: { slope: 1, edgeNoise: 2.5 },
   canyonMouth: { length: 30, slope: 0.5 },
   // 근거리 = 고해상도(셀 2m, 플레이 영역+고원 가장자리·절벽), 원거리 = 저해상도 링(셀 24m, 카메라 far 500 너머까지). nearHalf 는 farCell·nearCell 의 배수
+  // 굴곡: 고원 위 완만한 언덕(λ≈44m) + 암반 결(λ≈11m): 실제 범위 약 -2.0~+1.6m, 최대 경사 ≈ 0.37 (< 자동 오르기 한계 45°)
+  relief: { amp: 4.5, scale: 44, detailAmp: 0.9, detailScale: 11, ridgeAmp: 0.8, ridgeScale: 28, margin: 2, blend: 7, clearHalf: 74 },
+  // 고원 바깥 출렁임: 계곡·메사·산맥 전체가 ±7m 로 부드럽게 오르내린다 (층 단차와 절벽 높이는 그대로)
+  shift: { amp: 8, scale: 100, detailAmp: 5.5, detailScale: 30, r0: 86, r1: 125 },
   lod: { nearHalf: 120, nearCell: 2, farHalf: 528, farCell: 24, farStepH: 9, farRadius: 520 },
 };
 
 /** 지형 메시: 타일(색 모자이크) 한 변 길이(m)와 면당 상한. 면 크기에 비례, 원점에서 멀수록 (r/r0)^grow 배로 키워 적응형으로 쪼갠다 */
 export const TERRAIN_MESH = {
   seed: 29,
-  tile: { top: 3.5, wall: 8, max: 48, r0: 100, grow: 3 },
+  tile: { top: 4.5, wall: 8, max: 48, r0: 90, grow: 3 },
   maxTiles: 48,
   /** 높이별 윗면 팔레트: [이 높이 이상이면 해당 팔레트] (위에서부터 검사) */
   topPalette: [{ minY: -1, palette: 'earth' }, { minY: 5, palette: 'rock' }, { minY: -1000, palette: 'cliff' }] as const,
 };
 
 /** 충돌: 외곽 벽 안쪽(+여유)만 정적 trimesh (원거리 링은 시각 전용). 삼각형 상한은 Rapier 성능 보호용 (단위 테스트가 검사) */
-export const TERRAIN_COLLISION = { half: 86, maxTriangles: 4000 };
+export const TERRAIN_COLLISION = { half: 86, maxTriangles: 9000 };

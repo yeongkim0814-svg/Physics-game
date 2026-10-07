@@ -30,7 +30,7 @@ export const VISUAL = {
       tile: { block: 3.2, ground: 6, far: 28, stair: 8, cliff: 9, ledge: 4, landmark: 20 },
       maxTilesPerAxis: 40,
       /** 삼각 분할 패싯 (world/facet.ts): 불규칙 삼각형·안쪽으로 패인 측면·걸을 수 없는 윗면의 기복·삼각형별 색 */
-      facet: { jitter: 0.3, sideIn: 0.38, topLift: 0.2, topLiftMax: 2.2, triShade: 0.08, minSplit: 3.5, minSplitTop: 4, range: 220 },
+      facet: { jitter: 0.3, sideIn: 0.38, topLift: 0.12, topLiftMax: 1.0, triShade: 0.03, minSplit: 3.5, minSplitTop: 4, colorVar: 0.4, lean: 0.45, leanMax: 3, skirt: 0.25, range: 220 },
     },
     /** 근경 빛기둥(탑 위): 얇은 평면 2장 × 층 2겹, 안개 무시·가산 발광·느린 맥동 */
     beam: { height: 440, coreWidth: 0.9, outerWidth: 3.4, pulseSpeed: 0.9, pulseAmp: 0.25, coreOpacity: 0.95, outerOpacity: 0.32, spin: 0.05 },

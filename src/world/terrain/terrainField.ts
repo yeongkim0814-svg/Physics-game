@@ -4,7 +4,11 @@
 // 모든 높이는 fineStep(램프용 미세 단위, 자동 계단 한계 이하)의 정수배이고, 일반 지형은 stepH(층 높이)의 정수배다.
 import { clamp01, fbm01, lerp, ridged01, smoothstep, warp } from './noise';
 
-export interface TerrainPad { id: string; center: [number, number]; radius: number; y: number; blend: number; note?: string }
+export interface TerrainPad {
+  id: string; center: [number, number]; radius: number; y: number; blend: number; note?: string;
+  /** 굴곡 금지 반경(m). 없으면 radius + blend/2 (실험용 평탄 패드). 스폰처럼 높이만 0 으로 맞추고 굴곡은 허용할 땐 작게 */
+  reliefRadius?: number;
+}
 /** 고원 위로 솟은 둔덕(시각·도달 실험용). 가장자리에서 안쪽으로 slope 만큼 오르다 top 에서 평평해진다 */
 export interface BluffDef { center: [number, number]; size: [number, number]; top: number }
 /** 램프 회랑: from→to 선분을 따라 y0→y1 로 fineStep 단위로 선형 변화 (오를 수 없는 단차를 걸어서 오르는 길) */
@@ -17,6 +21,8 @@ export interface TerrainMapData {
   bluffs: readonly BluffDef[];
   ramps: readonly RampDef[];
   massifs: readonly MassifDef[];
+  /** 굴곡을 넣지 않는 직사각형 [x0, z0, x1, z1] (건물·계단 발자국). 없으면 없음 */
+  keepOut?: readonly (readonly [number, number, number, number])[];
 }
 
 export interface TerrainParams {
@@ -41,6 +47,13 @@ export interface TerrainParams {
   /** 협곡이 고원 바깥으로 입을 벌리는 길이(m)와 벌어지는 기울기 */
   canyonMouth: { length: number; slope: number };
   /** farStepH = 원거리 링의 층 높이 (큰 실루엣만 읽히면 되므로 크게 둔다: 삼각형 절감) */
+  /**
+   * 걸을 수 있는 고원의 굴곡(릴리프): 낮은 주파수 언덕(amp, scale) + 높은 주파수 암반 결(detailAmp, detailScale)을 건물·계단·패드·협곡·둔덕에서
+   * margin(m) 떨어진 곳부터 blend(m) 에 걸쳐 서서히 켠다. clearHalf 밖(고원 가장자리)은 0. 렌더와 충돌이 같은 함수·같은 삼각형을 쓴다.
+   */
+  relief: { amp: number; scale: number; detailAmp: number; detailScale: number; ridgeAmp: number; ridgeScale: number; margin: number; blend: number; clearHalf: number };
+  /** 고원 바깥(걸을 수 없는 시각 전용 영역)의 연속 상하 변위: 모든 정점에 위치 함수로 더해 이웃 면과 균열 없이 이어진다. r0~r1 에서 서서히 켠다 */
+  shift: { amp: number; scale: number; detailAmp: number; detailScale: number; r0: number; r1: number };
   lod: { nearHalf: number; nearCell: number; farHalf: number; farCell: number; farStepH: number; farRadius: number };
 }
 
@@ -51,6 +64,10 @@ const NONE = -32768; // 격자에 값이 없는 칸 (원거리 격자의 근거�
 
 export class TerrainField {
   readonly near: HeightGrid;
+  /** 근거리 격자 칸 중심에서 가장 가까운 '굴곡 금지' 칸까지 거리(m). 굴곡 마스크의 근원 */
+  private reliefDist: Float32Array;
+  /** 1 이면 이 근거리 칸은 굴곡 칸(렌더·충돌 모두 삼각형 격자로 만든다) */
+  readonly reliefCell: Uint8Array;
   readonly far: HeightGrid;
   /** 생성 시간 (ms, 로딩 지연 평가용) */
   readonly buildMs: number;
@@ -60,6 +77,10 @@ export class TerrainField {
     const L = P.lod;
     this.near = this.sampleGrid(L.nearHalf, L.nearCell, 0);
     this.far = this.sampleGrid(L.farHalf, L.farCell, L.nearHalf);
+    const rl = this.buildRelief();
+    this.reliefDist = rl.dist;
+    this.reliefCell = new Uint8Array(this.near.n * this.near.n);
+    this.markReliefCells();
     this.buildMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
   }
 
@@ -75,6 +96,84 @@ export class TerrainField {
       }
     }
     return { half, cell, n, levels };
+  }
+
+  // ───────────── 굴곡(릴리프) ─────────────
+
+  /** 굴곡 금지 칸 래스터 + 거리 변환(체이머퍼 3-4) */
+  private buildRelief(): { dist: Float32Array } {
+    const g = this.near, n = g.n, cell = g.cell, R = this.P.relief;
+    const occ = new Uint8Array(n * n);
+    const keep = this.M.keepOut ?? [];
+    for (let iz = 0; iz < n; iz++) {
+      for (let ix = 0; ix < n; ix++) {
+        const x = -g.half + (ix + 0.5) * cell, z = -g.half + (iz + 0.5) * cell;
+        let o = g.levels[iz * n + ix] !== 0 || Math.max(Math.abs(x), Math.abs(z)) > R.clearHalf || this.ramp(x, z) !== null;
+        if (!o) for (const p of this.M.pads) if (Math.hypot(x - p.center[0], z - p.center[1]) < (p.reliefRadius ?? p.radius + p.blend * 0.5)) { o = true; break; }
+        if (!o) for (const k of keep) if (x + cell / 2 > k[0] && x - cell / 2 < k[2] && z + cell / 2 > k[1] && z - cell / 2 < k[3]) { o = true; break; }
+        occ[iz * n + ix] = o ? 1 : 0;
+      }
+    }
+    const INF = 1e9, d = new Float32Array(n * n);
+    for (let i = 0; i < n * n; i++) d[i] = occ[i] ? 0 : INF;
+    const at = (ix: number, iz: number) => (ix < 0 || iz < 0 || ix >= n || iz >= n ? INF : d[iz * n + ix]);
+    for (let iz = 0; iz < n; iz++) for (let ix = 0; ix < n; ix++) {
+      d[iz * n + ix] = Math.min(d[iz * n + ix], at(ix - 1, iz) + 3, at(ix, iz - 1) + 3, at(ix - 1, iz - 1) + 4, at(ix + 1, iz - 1) + 4);
+    }
+    for (let iz = n - 1; iz >= 0; iz--) for (let ix = n - 1; ix >= 0; ix--) {
+      d[iz * n + ix] = Math.min(d[iz * n + ix], at(ix + 1, iz) + 3, at(ix, iz + 1) + 3, at(ix + 1, iz + 1) + 4, at(ix - 1, iz + 1) + 4);
+    }
+    for (let i = 0; i < n * n; i++) d[i] = d[i] >= INF ? 1e6 : (d[i] / 3) * cell;
+    return { dist: d };
+  }
+
+  /** (x,z) 에서 굴곡 금지 칸까지 거리(m): 칸 중심 값을 쌍선형 보간 */
+  private distAt(x: number, z: number): number {
+    const g = this.near, n = g.n;
+    const fx = (x + g.half) / g.cell - 0.5, fz = (z + g.half) / g.cell - 0.5;
+    const ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz;
+    const v = (a: number, b: number) => this.reliefDist[Math.min(n - 1, Math.max(0, b)) * n + Math.min(n - 1, Math.max(0, a))];
+    return (v(ix, iz) * (1 - tx) + v(ix + 1, iz) * tx) * (1 - tz) + (v(ix, iz + 1) * (1 - tx) + v(ix + 1, iz + 1) * tx) * tz;
+  }
+
+  /** 걸을 수 있는 고원의 굴곡 높이(m, 0 = 평평). 렌더·충돌·장식이 모두 이 함수를 쓴다 */
+  reliefAt(x: number, z: number): number {
+    const R = this.P.relief;
+    if (Math.max(Math.abs(x), Math.abs(z)) > R.clearHalf) return 0;
+    const m = smoothstep(R.margin, R.margin + R.blend, this.distAt(x, z));
+    if (m <= 0) return 0;
+    const s = this.P.seed;
+    // 완만한 언덕 + 암반 결 + 능선형 노이즈(각진 암반 둔덕: 경사가 급하게 갈리는 삼각 패싯을 만든다)
+    const a = R.amp * (2 * fbm01(x / R.scale, z / R.scale, s + 21, 3) - 1) + R.detailAmp * (2 * fbm01(x / R.detailScale, z / R.detailScale, s + 22, 2) - 1)
+      + R.ridgeAmp * (2 * ridged01(x / R.ridgeScale, z / R.ridgeScale, s + 23, 2) - 1);
+    return a * m;
+  }
+
+  private markReliefCells() {
+    const g = this.near, n = g.n, c = g.cell;
+    for (let iz = 0; iz < n; iz++) {
+      for (let ix = 0; ix < n; ix++) {
+        const x0 = -g.half + ix * c, z0 = -g.half + iz * c;
+        if (Math.abs(this.reliefAt(x0, z0)) > 1e-9 || Math.abs(this.reliefAt(x0 + c, z0)) > 1e-9 || Math.abs(this.reliefAt(x0, z0 + c)) > 1e-9 || Math.abs(this.reliefAt(x0 + c, z0 + c)) > 1e-9) {
+          this.reliefCell[iz * n + ix] = 1;
+        }
+      }
+    }
+  }
+
+  /** 고원 바깥 연속 상하 변위(m): 0 (r0 안쪽) → 풀 진폭 (r1 바깥) */
+  outsideShift(x: number, z: number): number {
+    const S = this.P.shift, m = Math.max(Math.abs(x), Math.abs(z));
+    const k = smoothstep(S.r0, S.r1, m);
+    if (k <= 0) return 0;
+    const s = this.P.seed;
+    return k * (S.amp * (2 * fbm01(x / S.scale, z / S.scale, s + 31, 3) - 1) + S.detailAmp * (2 * fbm01(x / S.detailScale, z / S.detailScale, s + 32, 2) - 1));
+  }
+
+  /** 실제 보이는/밟는 지면 높이(m) = 계단형 윗면 + 고원 굴곡 + 바깥 변위. 장식·기술 모듈 배치용 (충돌 메시와 같다) */
+  groundY(x: number, z: number): number {
+    const s = this.surface(x, z);
+    return s === -Infinity ? s : s + this.reliefAt(x, z) + this.outsideShift(x, z);
   }
 
   /** 격자 칸의 정수 높이 (범위 밖/빈 칸이면 null) */

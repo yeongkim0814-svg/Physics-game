@@ -25,11 +25,15 @@ export interface FacetLook {
   triShade: number;
   /** 한 변이 이 길이(m) 이상이면 안쪽 정점이 생기도록 최소 2분할: 측면(절벽·벽) / 윗면 */
   minSplit: number; minSplitTop: number;
+  /** 색 변화 유지 비율 0..1: 낮을수록 면 색이 기준색에 가까워져 명암 차이가 경사(조명)에서 나온다 */
+  colorVar: number;
+  /** 고원 바깥 절벽의 경사 계수(수평 후퇴 / 높이)와 바닥 아래로 묻는 깊이 비율 */
+  lean: number; leanMax: number; skirt: number;
   /** 이 반경(m) 밖은 안개에 묻히므로 최소 분할을 적용하지 않는다 (삼각형 절감, 하이트필드 전용) */
   range: number;
 }
 
-export const FACET_DEFAULT: FacetLook = { jitter: 0.3, sideIn: 0.38, topLift: 0.2, topLiftMax: 2.2, triShade: 0.08, minSplit: 3.5, minSplitTop: 4, range: 220 };
+export const FACET_DEFAULT: FacetLook = { jitter: 0.3, sideIn: 0.38, topLift: 0.12, topLiftMax: 1.0, triShade: 0.03, minSplit: 3.5, minSplitTop: 4, colorVar: 0.4, lean: 0.45, leanMax: 3, skirt: 0.25, range: 220 };
 
 /** 면 길이를 분할 수로 (1 ≤ n ≤ maxTiles). minSplit 이상이면 최소 2 (안쪽 정점 확보) */
 export function splitCount(len: number, tile: number, maxTiles: number, minSplit: number): number {
@@ -48,6 +52,8 @@ export interface FacetPatch {
   vertexMul?: (p: V3) => number;
   jitter: number;
   triShade: number;
+  /** 절벽 경사(talus): 모든 정점을 높이 top 에서 아래로 내려갈수록 법선 방향으로 k·(top-y) 만큼 밀어낸다. 위쪽 가장자리는 고정이라 균열이 없다 */
+  lean?: { top: number; k: number; max: number };
   /** 법선 변위: 'in' = 안쪽으로만 0..amp, 'both' = ±amp. amp(p0) 는 원래 정점 위치에서의 허용량 (0 이면 변위 없음) */
   bump?: { mode: 'in' | 'both'; amp: (p0: V3) => number };
 }
@@ -65,10 +71,12 @@ export function emitFacets(f: FacetPatch, out: FacetOut): void {
     const row: V3[] = [];
     for (let j = 0; j <= nv; j++) {
       const p0 = pos(i * du, j * dv);
+      if (f.lean) { const d = Math.min(f.lean.max, f.lean.k * Math.max(0, f.lean.top - p0[1])); p0[0] += n[0] * d; p0[1] += n[1] * d; p0[2] += n[2] * d; }
       if (i === 0 || j === 0 || i === nu || j === nv) { row.push(p0); continue; }
       const a = i * du + (hash3(i, j, 1, f.seed) - 0.5) * 2 * f.jitter * du;
       const b = j * dv + (hash3(i, j, 2, f.seed) - 0.5) * 2 * f.jitter * dv;
       const p = pos(a, b);
+      if (f.lean) { const d = Math.min(f.lean.max, f.lean.k * Math.max(0, f.lean.top - p0[1])); p[0] += n[0] * d; p[1] += n[1] * d; p[2] += n[2] * d; }
       const amp = f.bump ? f.bump.amp(p0) : 0;
       if (amp > 0) {
         const h = hash3(i, j, 3, f.seed);
