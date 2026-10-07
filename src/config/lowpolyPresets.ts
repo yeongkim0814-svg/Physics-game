@@ -116,10 +116,10 @@ export const LP_DAY: LowpolyPreset = {
 export const LP_DUSK: LowpolyPreset = {
   // 영원한 황혼: 안개는 목표 이미지 중경 계곡의 보랏빛 헤이즈. 가까운 곳은 선명, 멀수록 라일락으로 잠긴다
   // 높이 안개(C6): 계곡 바닥(-30m 부근)은 짙은 보라 안개 속에 잠기고, 고원(y≥0)은 선명하다
-  fog: { color: 0x7360a2, near: 45, far: 320, height: { top: -12, falloff: 9, density: 0.014, color: 0x424a7c } },
+  fog: { color: 0x7360a2, near: 45, far: 320, height: { top: -6, falloff: 13, density: 0.016, color: 0x6a68a6 } },
   lighting: {
     // 하늘 반사광은 보라(그늘면), 지면 반사는 따뜻한 갈색. 태양은 낮은 고도에서 호박색 측면광 (햇빛 면 = 호박 림)
-    sky: 0x8468b4, ground: 0xb07a60, hemiIntensity: 3.0,
+    sky: 0x8468b4, ground: 0xb07a60, hemiIntensity: 3.5,
     sun: 0xffa24e, sunIntensity: 3.7, sunDir: [0.55, 0.45, -0.7], sunDistance: 40,
   },
   sky: {
@@ -165,6 +165,6 @@ export const LP_DUSK: LowpolyPreset = {
   },
   features: { backdrop: true, beam: true, debris: true, windows: true, ledges: true },
   debrisColors: [0x4e4270, 0x5e4a72, 0x6e5060, 0x7a5a58, 0x463c68, 0x8a6a5a],
-  techColors: [0x3a3258, 0x463a66, 0x2f2c4c, 0x52406a],
+  techColors: [0x2c2640, 0x342c4c, 0x262338, 0x3e3050],
   beamColors: { core: 0xe6e0ff, outer: 0x8c7cff },
 };

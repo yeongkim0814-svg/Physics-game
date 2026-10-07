@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP } from '../../data/map';
+import { MAP, TERRAIN_DATA } from '../../data/map';
 import { TERRAIN_COLLISION, TERRAIN_FIELD, TERRAIN_MESH } from '../../config/terrainParams';
 import { TUNING } from '../../config/tuning';
 import { VISUAL } from '../../config/settings';
@@ -8,10 +8,10 @@ import { inFootprint } from '../decor';
 import { isFlatSpot } from '../buildDecor';
 import { clamp01, fbm01, gradNoise, ridged01, smoothstep } from './noise';
 import { createTerrainField, type TerrainMapData } from './terrainField';
-import { buildCollisionMesh, buildTerrainMesh, collectQuads, tileSizeAt } from './terrainMesh';
+import { buildCollisionMesh, buildTerrainMesh, collectQuads, forEachReliefTriangle, tileSizeAt } from './terrainMesh';
 import { buildWalkGrid, floodReachable, reached } from './reachability';
 
-const MAPDATA: TerrainMapData = { canyon: MAP.canyon, ...MAP.terrain };
+const MAPDATA: TerrainMapData = TERRAIN_DATA;
 const field = createTerrainField(TERRAIN_FIELD, MAPDATA);
 const FS = TERRAIN_FIELD.fineStep;
 
@@ -204,7 +204,7 @@ describe('지형 메시', () => {
     }
     for (const idx of c.indices) expect(idx).toBeLessThan(c.vertices.length / 3);
   });
-  it('충돌 윗면 사각형이 격자 높이와 일치 (렌더 메시와 같은 사각형 집합)', () => {
+  it('충돌 윗면 사각형이 격자 높이와 일치하고, 굴곡 칸과 합치면 윈도 전체를 빠짐없이 덮는다', () => {
     const q = collectQuads(field, TERRAIN_COLLISION.half, false);
     let area = 0;
     for (const t of q.tops) {
@@ -212,7 +212,12 @@ describe('지형 메시', () => {
       const cx = (t.x0 + t.x1) / 2, cz = (t.z0 + t.z1) / 2;
       expect(field.surface(cx, cz)).toBeCloseTo(t.level * FS, 6);
     }
-    expect(area).toBeCloseTo(TERRAIN_COLLISION.half * 2 * TERRAIN_COLLISION.half * 2, 3); // 윈도 전체가 빠짐없이 덮인다
+    let reliefTris = 0;
+    forEachReliefTriangle(field, TERRAIN_COLLISION.half, () => { reliefTris++; });
+    const cell = TERRAIN_FIELD.lod.nearCell;
+    expect(reliefTris % 2).toBe(0);
+    expect(area + (reliefTris / 2) * cell * cell).toBeCloseTo(TERRAIN_COLLISION.half * 2 * TERRAIN_COLLISION.half * 2, 3);
+    expect(reliefTris).toBeGreaterThan(500); // 굴곡이 실제로 있다
   });
   it('벽: 양쪽 칸 높이 차와 정확히 일치하고 높은 쪽이 낮은 쪽을 향한다 (LOD 경계 포함)', () => {
     const q = collectQuads(field, Infinity, true);
@@ -232,7 +237,7 @@ describe('지형 메시', () => {
   it('렌더 메시: 비어 있지 않고 법선 단위·색 0~1·삼각형 예산 이하', () => {
     const tris = mesh.positions.length / 9;
     expect(tris).toBeGreaterThan(5000);
-    expect(tris).toBeLessThanOrEqual(24000); // 태블릿 예산(총 45k)에서 지형 몫
+    expect(tris).toBeLessThanOrEqual(26000); // 지형 몫: 계단형 안쪽(패싯·굴곡 삼각형) + 바깥 연속 삼각 격자 ≈13k
     for (let i = 0; i < mesh.normals.length; i += 3 * 97) {
       expect(Math.hypot(mesh.normals[i], mesh.normals[i + 1], mesh.normals[i + 2])).toBeCloseTo(1, 4);
     }
@@ -251,5 +256,117 @@ describe('장식 배치 보조', () => {
   it('평평한 칸 판정: 고원 중앙은 평평, 협곡 가장자리·고원 가장자리는 아님', () => {
     expect(isFlatSpot(field, 0, 30, 3)).toBe(true);
     expect(isFlatSpot(field, 0, MAP.canyon.zMax + 1, 3)).toBe(false);
+  });
+});
+
+describe('고원 굴곡(릴리프)', () => {
+  const R = TERRAIN_FIELD.relief, S = TERRAIN_FIELD.shift;
+  const rects = TERRAIN_DATA.keepOut!;
+  it('게임플레이 구조물 위·주변에서는 굴곡 0: 스폰·탑 밑동·패드·협곡·둔덕·램프·건물·계단 발자국', () => {
+    expect(field.reliefAt(MAP.spawn[0], MAP.spawn[2])).toBe(0);
+    expect(field.reliefAt(MAP.tower.x, MAP.tower.z)).toBe(0);
+    for (const p of TERRAIN_DATA.pads) expect(field.reliefAt(p.center[0], p.center[1])).toBe(0);
+    for (let x = -80; x <= 80; x += 3) for (let z = MAP.canyon.zMin - 1; z <= MAP.canyon.zMax + 1; z += 3) expect(field.reliefAt(x, z)).toBe(0);
+    for (const b of TERRAIN_DATA.bluffs) expect(field.reliefAt(b.center[0], b.center[1])).toBe(0);
+    for (const r of TERRAIN_DATA.ramps) expect(field.reliefAt((r.from[0] + r.to[0]) / 2, (r.from[1] + r.to[1]) / 2)).toBe(0);
+    for (const [x0, z0, x1, z1] of rects) {
+      for (const fx of [0, 0.5, 1]) for (const fz of [0, 0.5, 1]) expect(field.reliefAt(x0 + (x1 - x0) * fx, z0 + (z1 - z0) * fz)).toBe(0);
+    }
+  });
+  it('굴곡 크기는 amp+detailAmp 이하, clearHalf 바깥은 0, 실제로 오르내린다', () => {
+    let lo = Infinity, hi = -Infinity;
+    for (let x = -90; x <= 90; x += 1.7) for (let z = -90; z <= 90; z += 1.9) {
+      const r = field.reliefAt(x, z);
+      expect(Math.abs(r)).toBeLessThanOrEqual(R.amp + R.detailAmp + 1e-9);
+      if (Math.max(Math.abs(x), Math.abs(z)) > R.clearHalf) expect(r).toBe(0);
+      lo = Math.min(lo, r); hi = Math.max(hi, r);
+    }
+    expect(hi).toBeGreaterThan(0.6); expect(lo).toBeLessThan(-0.6);
+  });
+  it('걸을 수 있는 경사: 어디서나 기울기 < 0.6 (≈31°, 자동 오르기 한계 45° 보다 완만)', () => {
+    let worst = 0;
+    for (let x = -76; x <= 76; x += 1) for (let z = -76; z <= 76; z += 1) {
+      const dx = Math.abs(field.reliefAt(x + 1, z) - field.reliefAt(x, z)), dz = Math.abs(field.reliefAt(x, z + 1) - field.reliefAt(x, z));
+      worst = Math.max(worst, dx, dz);
+    }
+    expect(worst).toBeLessThan(0.6);
+  });
+  it('굴곡 칸 삼각형은 렌더·충돌이 같다 (정점 높이 = reliefAt, 충돌 메시에 모두 들어간다)', () => {
+    const c = buildCollisionMesh(field, TERRAIN_COLLISION.half);
+    let count = 0, maxDev = 0;
+    forEachReliefTriangle(field, TERRAIN_COLLISION.half, (a, b, d) => { count++; for (const p of [a, b, d]) maxDev = Math.max(maxDev, Math.abs(p[1] - field.reliefAt(p[0], p[2]))); });
+    expect(maxDev).toBe(0);
+    const q = collectQuads(field, TERRAIN_COLLISION.half, false);
+    expect(c.indices.length / 3).toBe(q.tops.length * 2 + q.walls.length * 2 + count);
+    expect(c.indices.length / 3).toBeLessThanOrEqual(TERRAIN_COLLISION.maxTriangles);
+  });
+  it('groundY = (고원 안) 계단형 윗면 + 굴곡 / (바깥) 연속 삼각 격자 높이, 걸을 수 있는 영역의 구조물 위치는 바뀌지 않는다', () => {
+    expect(field.groundY(MAP.spawn[0], MAP.spawn[2])).toBe(0);
+    const x = 20, z = 60;
+    expect(field.groundY(x, z)).toBeCloseTo(field.surface(x, z) + field.reliefAt(x, z), 9);
+    const xo = 150, zo = 20;
+    expect(field.groundY(xo, zo)).toBeCloseTo(field.outer.heightAt(xo, zo)!, 9); // 고원 바깥은 렌더되는 삼각형 위 높이
+  });
+  it('바깥 변위: 고원(r0 안쪽)은 0, 크기 ≤ amp+detailAmp, 연속(이웃 점 차이가 작다)', () => {
+    for (let x = -S.r0; x <= S.r0; x += 6) for (let z = -S.r0; z <= S.r0; z += 6) expect(field.outsideShift(x, z)).toBe(0);
+    let worst = 0;
+    for (let x = 90; x <= 400; x += 3.1) for (let z = -300; z <= 300; z += 5.3) {
+      const v = field.outsideShift(x, z);
+      expect(Math.abs(v)).toBeLessThanOrEqual(S.amp + S.detailAmp + 1e-9);
+      worst = Math.max(worst, Math.abs(field.outsideShift(x + 1, z) - v));
+    }
+    expect(worst).toBeLessThan(1.2);
+  });
+});
+
+describe('고원 바깥 연속 삼각 격자', () => {
+  const O = TERRAIN_FIELD.outer, lat = field.outer;
+  const tris: { a: number[]; b: number[]; c: number[]; ring: number }[] = [];
+  lat.forEachTriangle((a, b, c, _ix, _iz, ring) => { tris.push({ a, b, c, ring }); });
+  it('삼각형 수 예산(≤ 18k), 모든 정점 높이 유한', () => {
+    expect(tris.length).toBeGreaterThan(8000);
+    expect(tris.length).toBeLessThanOrEqual(18000);
+    for (const t of tris) for (const p of [t.a, t.b, t.c]) expect(Number.isFinite(p[1])).toBe(true);
+  });
+  it('이음새 안쪽·카메라 far 너머는 null, 바깥은 높이를 돌려준다', () => {
+    expect(lat.heightAt(0, 0)).toBeNull();
+    expect(lat.heightAt(O.seam - 1, 0)).toBeNull();
+    expect(lat.heightAt(O.seam + 3, 5)).not.toBeNull();
+    expect(lat.heightAt(O.coarseHalf + 10, 0)).toBeNull();
+  });
+  it('heightAt 은 렌더되는 삼각형 평면과 같다 (장식이 보이는 지면 위에 놓인다)', () => {
+    let checked = 0;
+    for (let i = 0; i < tris.length; i += 53) {
+      const { a, b, c } = tris[i];
+      const x = (a[0] + b[0] + c[0]) / 3, z = (a[2] + b[2] + c[2]) / 3, y = (a[1] + b[1] + c[1]) / 3;
+      expect(lat.heightAt(x, z)!).toBeCloseTo(y, 3);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+  it('가는/거친 격자 경계에서 균열이 없다 (경계 양쪽 높이가 이어진다)', () => {
+    const e = 1e-3;
+    for (let t = -O.fineHalf + 1; t < O.fineHalf; t += 7.3) {
+      expect(Math.abs(lat.heightAt(O.fineHalf - e, t)! - lat.heightAt(O.fineHalf + e, t)!)).toBeLessThan(0.05);
+      expect(Math.abs(lat.heightAt(t, -O.fineHalf + e)! - lat.heightAt(t, -O.fineHalf - e)!)).toBeLessThan(0.05);
+    }
+  });
+  it('이음새 정점 높이 = 계단형 윗면 + 바깥 변위 (안쪽 사각 지형과 같은 높이에서 시작)', () => {
+    let n = 0;
+    lat.forEachSeamSegment((p0) => {
+      const q = field.surface(p0[0], p0[2]);
+      if (Number.isFinite(q)) { expect(p0[1]).toBeCloseTo(q + field.outsideShift(p0[0], p0[2]), 4); n++; }
+    });
+    expect(n).toBeGreaterThan(50);
+  });
+  it('가파른 절벽 삼각형과 완만한 윗면 삼각형이 모두 있다 (상자가 아니라 경사로 이루어진 지형)', () => {
+    let steep = 0, flat = 0;
+    for (const { a, b, c } of tris) {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      const nx = uy * vz - uz * vy, ny = Math.abs(uz * vx - ux * vz), nz = ux * vy - uy * vx, ny1 = ny / (Math.hypot(nx, ny, nz) || 1);
+      if (ny1 < 0.6) steep++; else if (ny1 > 0.85) flat++;
+    }
+    expect(steep).toBeGreaterThan(500);
+    expect(flat).toBeGreaterThan(2000);
   });
 });

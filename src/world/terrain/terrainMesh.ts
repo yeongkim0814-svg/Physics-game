@@ -1,8 +1,10 @@
 // 하이트필드 격자 → 메시. 같은 높이의 칸은 그리디로 큰 사각형으로 합치고(윗면), 높이 차가 나는 칸 경계마다 수직 절벽 벽을 만든다
 // (높은 쪽 칸이 낮은 쪽을 향해 벽을 그린다 → 근거리/원거리 LOD 경계도 같은 규칙으로 균열 없이 이어진다). 보이지 않는 아래면은 만들지 않는다.
-// 렌더 메시는 사각형을 타일로 쪼개 정점색 모자이크(blockTerrain 의 tileColor·sideShade 재사용), 충돌 메시는 합친 사각형 그대로(삼각형 최소).
+// 렌더 메시는 사각형을 격자로 쪼개 불규칙한 삼각형 패싯으로(world/facet.ts: 안쪽 정점 흔들림·절벽은 안쪽으로 패임·걸을 수 없는 윗면은 기복,
+// 색은 삼각형마다 blockTerrain 의 tileColor·sideShade 재사용), 충돌 메시는 합친 사각형 그대로(삼각형 최소, 걸을 수 있는 윗면은 렌더도 평평).
 // 순수 계산 (THREE/Rapier 의존 없음).
-import { hash3, sideShade, tileColor, tileCount, type MeshData, type PaletteKey, type TerrainLook, type V3 } from '../blockTerrain';
+import { hash3, sideShade, tileColor, type MeshData, type PaletteKey, type TerrainLook, type V3 } from '../blockTerrain';
+import { emitFacets, FACET_DEFAULT, splitCount, type FacetLook } from '../facet';
 import { TerrainField, type HeightGrid } from './terrainField';
 
 /** 윗면 사각형: [x0,x1]×[z0,z1], 높이 level(fineStep 단위) */
@@ -27,18 +29,19 @@ function gridQuads(field: TerrainField, g: HeightGrid, far: boolean, win: number
   };
   const valid = (ix: number, iz: number) => ix >= 0 && iz >= 0 && ix < n && iz < n && levels[iz * n + ix] !== -32768 && inWin(ix, iz);
 
-  // 윗면: 행 우선 그리디 사각형
+  // 윗면: 행 우선 그리디 사각형. 굴곡 칸(근거리 격자)은 평평한 사각형이 아니라 삼각형 격자로 따로 만든다
+  const topOk = (ix: number, iz: number) => valid(ix, iz) && (far || !field.reliefCell[iz * n + ix]);
   const seen = new Uint8Array(n * n);
   for (let iz = 0; iz < n; iz++) {
     for (let ix = 0; ix < n; ix++) {
-      if (seen[iz * n + ix] || !valid(ix, iz)) continue;
+      if (seen[iz * n + ix] || !topOk(ix, iz)) continue;
       const lv = levels[iz * n + ix];
       let w = 1;
-      while (ix + w < n && !seen[iz * n + ix + w] && valid(ix + w, iz) && levels[iz * n + ix + w] === lv) w++;
+      while (ix + w < n && !seen[iz * n + ix + w] && topOk(ix + w, iz) && levels[iz * n + ix + w] === lv) w++;
       let h = 1;
       grow: while (iz + h < n) {
         for (let k = 0; k < w; k++) {
-          if (seen[(iz + h) * n + ix + k] || !valid(ix + k, iz + h) || levels[(iz + h) * n + ix + k] !== lv) break grow;
+          if (seen[(iz + h) * n + ix + k] || !topOk(ix + k, iz + h) || levels[(iz + h) * n + ix + k] !== lv) break grow;
         }
         h++;
       }
@@ -98,6 +101,25 @@ export function collectQuads(field: TerrainField, win: number, includeFar: boole
 }
 
 // ---------------------------------------------------------------------------------------------
+// 굴곡 칸 삼각형 (렌더·충돌 공용: 같은 정점 높이 = field.reliefAt, 같은 대각선)
+// ---------------------------------------------------------------------------------------------
+
+/** 근거리 격자의 굴곡 칸(중심이 win 안쪽)마다 삼각형 2개를 낸다. 대각선은 칸 해시로 번갈아 뒤집는다 */
+export function forEachReliefTriangle(field: TerrainField, win: number, cb: (a: V3, b: V3, c: V3, ix: number, iz: number) => void) {
+  const g = field.near, n = g.n, c = g.cell;
+  for (let iz = 0; iz < n; iz++) {
+    for (let ix = 0; ix < n; ix++) {
+      if (!field.reliefCell[iz * n + ix]) continue;
+      const x0 = -g.half + ix * c, z0 = -g.half + iz * c, x1 = x0 + c, z1 = z0 + c;
+      if (Math.abs(x0 + c / 2) >= win || Math.abs(z0 + c / 2) >= win) continue;
+      const P = (x: number, z: number): V3 => [x, field.reliefAt(x, z), z];
+      const a = P(x0, z0), b = P(x1, z0), d = P(x1, z1), e = P(x0, z1);
+      if (hash3(ix, iz, 7, 61) > 0.5) { cb(a, b, e, ix, iz); cb(b, d, e, ix, iz); } else { cb(a, b, d, ix, iz); cb(a, d, e, ix, iz); }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // 렌더 메시
 // ---------------------------------------------------------------------------------------------
 
@@ -108,6 +130,10 @@ export interface TerrainMeshOpts {
   tile: { top: number; wall: number; max: number; r0: number; grow: number };
   maxTiles: number;
   topPalette: readonly { minY: number; palette: PaletteKey }[];
+  /** 삼각 분할 외형 (없으면 FACET_DEFAULT) */
+  facet?: FacetLook;
+  /** 이 반폭(m) 안쪽 윗면은 충돌과 같게 평평하게 둔다 (기본 0 = 모두 기복 허용) */
+  walkHalf?: number;
 }
 
 const unpack = (hex: number): V3 => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
@@ -134,33 +160,24 @@ export function topPaletteAt(y: number, list: TerrainMeshOpts['topPalette']): Pa
   return list[list.length - 1].palette;
 }
 
-/** 근거리·원거리 모든 사각형을 정점색 모자이크 비색인 삼각형 메시로 (렌더용) */
+/** 근거리·원거리 모든 사각형을 정점색 삼각형 패싯 비색인 메시로 (렌더용) */
 export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: TerrainTint, o: TerrainMeshOpts): MeshData {
-  const q = collectQuads(field, Infinity, true);
+  // 이음새(seam) 안쪽만 계단형 사각 지형 — 바깥은 연속 삼각 격자(OuterLattice)가 맡는다
+  const q = collectQuads(field, field.P.outer.seam, false);
   const fs = field.P.fineStep;
-  const pos: number[] = [], nor: number[] = [], col: number[] = [];
-  const pushTri = (p: V3[], n: V3, c: V3[]) => {
-    for (let i = 0; i < 3; i++) { pos.push(p[i][0], p[i][1], p[i][2]); nor.push(n[0], n[1], n[2]); col.push(c[i][0], c[i][1], c[i][2]); }
-  };
-  /** origin 에서 u(길이 uLen)·v(길이 vLen) 로 뻗은 사각형을 nu×nv 타일로. 타일마다 색 하나 (colorAt), 정점 보정은 vertexMul */
-  const emit = (origin: V3, u: V3, v: V3, uLen: number, vLen: number, nu: number, nv: number, n: V3,
-    colorAt: (i: number, j: number) => V3, vertexMul: (p: V3) => number) => {
-    const du = uLen / nu, dv = vLen / nv;
-    for (let j = 0; j < nv; j++) {
-      for (let i = 0; i < nu; i++) {
-        const base = colorAt(i, j);
-        const corner = (a: number, b: number) => {
-          const p: V3 = [origin[0] + u[0] * a * du + v[0] * b * dv, origin[1] + u[1] * a * du + v[1] * b * dv, origin[2] + u[2] * a * du + v[2] * b * dv];
-          const k = vertexMul(p);
-          return { p, c: [base[0] * k, base[1] * k, base[2] * k] as V3 };
-        };
-        const c00 = corner(i, j), c10 = corner(i + 1, j), c11 = corner(i + 1, j + 1), c01 = corner(i, j + 1);
-        pushTri([c00.p, c10.p, c11.p], n, [c00.c, c10.c, c11.c]);
-        pushTri([c00.p, c11.p, c01.p], n, [c00.c, c11.c, c01.c]);
-      }
-    }
-  };
+  const F = o.facet ?? FACET_DEFAULT, walkHalf = o.walkHalf ?? 0;
+  const out = { pos: [] as number[], nor: [] as number[], col: [] as number[] };
   const seedOf = (a: number, b: number, c: number) => Math.floor(hash3(Math.round(a * 4), Math.round(b), Math.round(c * 4), o.seed) * 2147483647);
+  /** 색 변화를 줄여 면의 명암 차이가 무작위 색이 아니라 경사(조명)에서 나오게 한다: 기준색 쪽으로 (1-colorVar) 만큼 당긴다 */
+  const calm = (c: V3, ref: V3): V3 => mixv(ref, c, F.colorVar);
+  /** 팔레트별 공통 기준색: 평평한 윗면·굴곡 삼각형·절벽이 같은 기준으로 당겨져 이웃끼리 색이 튀지 않는다 */
+  const refCache = new Map<string, V3>();
+  const refOf = (palette: PaletteKey, top: boolean): V3 => {
+    const k = palette + (top ? 't' : 's');
+    let r = refCache.get(k);
+    if (!r) { r = tileColor(look, palette, o.seed, 0, 0, 0, top, 0); refCache.set(k, r); }
+    return r;
+  };
 
   for (const t of q.tops) {
     const y = t.level * fs, w = t.x1 - t.x0, d = t.z1 - t.z0;
@@ -169,8 +186,16 @@ export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: T
     const tile = tileSizeAt(o.tile.top, rad, o.tile);
     const bs = seedOf(t.x0, t.level, t.z0);
     const moss = palette === 'earth' ? 0.5 : 0.15;
-    emit([t.x0, y, t.z1], [1, 0, 0], [0, 0, -1], w, d, tileCount(w, tile, o.maxTiles), tileCount(d, tile, o.maxTiles), [0, 1, 0],
-      (i, j) => tintColor(tileColor(look, palette, bs, 0, i, j, true, moss), y, rad, tint), () => 1);
+    const ms = rad <= F.range ? F.minSplitTop : Infinity;
+    const nu = splitCount(w, tile, o.maxTiles, ms), nv = splitCount(d, tile, o.maxTiles, ms);
+    const lift = Math.min(F.topLiftMax, F.topLift * Math.min(w / nu, d / nv));
+    emitFacets({
+      origin: [t.x0, y, t.z1], u: [1, 0, 0], v: [0, 0, -1], uLen: w, vLen: d, nu, nv, n: [0, 1, 0], seed: bs,
+      colorAt: (i, j) => tintColor(calm(tileColor(look, palette, bs, 0, i >> 2, j >> 1, true, moss), refOf(palette, true)), y, rad, tint),
+      jitter: F.jitter, triShade: F.triShade,
+      // 걸을 수 있는 영역(외곽 벽 안쪽)은 충돌과 같게 평평, 바깥은 상하 기복으로 능선·언덕 패싯
+      bump: { mode: 'both', amp: (p0) => (Math.max(Math.abs(p0[0]), Math.abs(p0[2])) > walkHalf ? lift : 0) },
+    }, out);
   }
   for (const wl of q.walls) {
     const y0 = wl.yLow * fs, y1 = wl.yHigh * fs, len = wl.b - wl.a, hgt = y1 - y0;
@@ -182,11 +207,87 @@ export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: T
     const cxm = wl.axis === 'x' ? (wl.a + wl.b) / 2 : wl.fixed, czm = wl.axis === 'x' ? wl.fixed : (wl.a + wl.b) / 2;
     const rad = Math.hypot(cxm, czm);
     const tile = tileSizeAt(o.tile.wall, rad, o.tile);
-    emit(origin, u, [0, 1, 0], len, hgt, tileCount(len, tile, o.maxTiles), tileCount(hgt, tile, o.maxTiles), [wl.nx, 0, wl.nz],
-      (i, j) => { const c = tintColor(tileColor(look, 'cliff', bs, 2, i, j, false, 1), (y0 + y1) / 2, rad, tint); return [c[0] * tint.wall, c[1] * tint.wall, c[2] * tint.wall] as V3; },
-      (p) => sideShade(p[1] - y0, look));
+    const ms = rad <= F.range ? F.minSplit : Infinity;
+    // 고원 바깥(충돌 없음) 절벽은 아래로 갈수록 바깥으로 기울고(talus), 바닥 아래로 묻어 균열을 막는다. 걸을 수 있는 영역 안쪽은 수직 그대로
+    const leaning = Math.max(Math.abs(cxm), Math.abs(czm)) > walkHalf && F.lean > 0;
+    const sink = leaning ? Math.min(1.2, hgt * F.skirt) : 0;
+    const oy: V3 = [origin[0], origin[1] - sink, origin[2]];
+    const vH = hgt + sink;
+    const nu = splitCount(len, tile, o.maxTiles, ms), nv = splitCount(vH, tile, o.maxTiles, ms);
+    const cell = Math.min(len / nu, vH / nv);
+    emitFacets({
+      origin: oy, u, v: [0, 1, 0], uLen: len, vLen: vH, nu, nv, n: [wl.nx, 0, wl.nz], seed: bs,
+      lean: leaning ? { top: y1, k: F.lean, max: F.leanMax } : undefined,
+      colorAt: (i, j) => { const c = tintColor(calm(tileColor(look, 'cliff', bs, 2, i >> 1, j >> 1, false, 1), refOf('cliff', false)), (y0 + y1) / 2, rad, tint); return [c[0] * tint.wall, c[1] * tint.wall, c[2] * tint.wall] as V3; },
+      vertexMul: (p) => sideShade(p[1] - y0, look),
+      jitter: F.jitter, triShade: F.triShade,
+      // 절벽면은 안쪽(낮은 쪽의 반대)으로만 패인다: 충돌 벽(수직)보다 바깥으로 나오지 않아 걷는 공간을 침범하지 않는다
+      bump: { mode: 'in', amp: () => cell * F.sideIn },
+    }, out);
   }
-  return { positions: new Float32Array(pos), normals: new Float32Array(nor), colors: new Float32Array(col) };
+  // 굴곡 칸: 걸을 수 있는 고원의 삼각형 격자 (충돌과 같은 삼각형). 색은 earth 팔레트의 완만한 변화, 명암은 경사가 만든다
+  const earthRef = refOf('earth', true);
+  forEachReliefTriangle(field, Infinity, (a, b, c, ix, iz) => {
+    const base = calm(tileColor(look, 'earth', o.seed, 0, ix >> 2, iz >> 2, true, 0.5), earthRef);
+    const shade = 1 + (hash3(ix, iz, 9, o.seed) - 0.5) * 2 * F.triShade;
+    const nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    const flip = ny < 0, len = Math.hypot(nx, ny, nz) || 1, s = flip ? -1 : 1;
+    for (const p of flip ? [a, c, b] : [a, b, c]) {
+      out.pos.push(p[0], p[1], p[2]); out.nor.push((s * nx) / len, (s * ny) / len, (s * nz) / len);
+      const t = tintColor(base, p[1], Math.hypot(p[0], p[2]), tint);
+      out.col.push(t[0] * shade, t[1] * shade, t[2] * shade);
+    }
+  });
+  // 이음새 바깥 가장자리 근처 계단형 정점에도 같은 위치 변위를 더한다 (이음새 안쪽에서는 거의 0). 법선 재계산
+  for (let i = 0; i < out.pos.length; i += 3) out.pos[i + 1] += field.outsideShift(out.pos[i], out.pos[i + 2]);
+  for (let t = 0; t < out.pos.length; t += 9) {
+    const ax = out.pos[t], ay = out.pos[t + 1], az = out.pos[t + 2];
+    const ux = out.pos[t + 3] - ax, uy = out.pos[t + 4] - ay, uz = out.pos[t + 5] - az, vx = out.pos[t + 6] - ax, vy = out.pos[t + 7] - ay, vz = out.pos[t + 8] - az;
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1; nx /= len; ny /= len; nz /= len;
+    const sgn = nx * out.nor[t] + ny * out.nor[t + 1] + nz * out.nor[t + 2] < 0 ? -1 : 1; // 원래 바깥 방향 유지
+    for (let k = 0; k < 3; k++) { out.nor[t + k * 3] = nx * sgn; out.nor[t + k * 3 + 1] = ny * sgn; out.nor[t + k * 3 + 2] = nz * sgn; }
+  }
+  emitOuter(field, look, tint, o, F, out, calm, refOf);
+  return { positions: new Float32Array(out.pos), normals: new Float32Array(out.nor), colors: new Float32Array(out.col) };
+}
+
+/**
+ * 고원 바깥 연속 삼각 격자를 메시에 추가한다. 색은 경사(법선 y)로 정한다: 완만하면 윗면 팔레트(높이별), 가파르면 절벽 팔레트 — 명암은 조명이 만든다.
+ * 이음새에는 안쪽 계단형 지형과의 틈을 덮는 가림막(안쪽을 향한 절벽색 판)을 둔다.
+ */
+function emitOuter(field: TerrainField, look: TerrainLook, tint: TerrainTint, o: TerrainMeshOpts, F: FacetLook,
+  out: { pos: number[]; nor: number[]; col: number[] }, calm: (c: V3, ref: V3) => V3, refOf: (p: PaletteKey, top: boolean) => V3) {
+  field.outer.forEachTriangle((a, b, c, ix, iz, ring) => {
+    let nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    const flip = ny < 0;
+    if (flip) { nx = -nx; ny = -ny; nz = -nz; }
+    const len = Math.hypot(nx, ny, nz) || 1; nx /= len; ny /= len; nz /= len;
+    const yAvg = (a[1] + b[1] + c[1]) / 3, rad = Math.hypot((a[0] + b[0] + c[0]) / 3, (a[2] + b[2] + c[2]) / 3);
+    const cs = ring === 0 ? 1 : 3; // 변화 칸 크기: 거친 격자는 더 크게
+    const palette = topPaletteAt(yAvg, o.topPalette);
+    const top = calm(tileColor(look, palette, o.seed, 0, ix >> cs, iz >> cs, true, 0.15), refOf(palette, true));
+    const cliff = calm(tileColor(look, 'cliff', o.seed, 2, ix >> cs, iz >> cs, false, 1), refOf('cliff', false));
+    const t = sstep(0.55, 0.86, ny);
+    const base = mixv([cliff[0] * tint.wall, cliff[1] * tint.wall, cliff[2] * tint.wall], top, t);
+    const col = tintColor(base, yAvg, rad, tint);
+    const shade = 1 + (hash3(ix, iz, ring + 11, o.seed) - 0.5) * 2 * F.triShade;
+    for (const p of flip ? [a, c, b] : [a, b, c]) {
+      out.pos.push(p[0], p[1], p[2]); out.nor.push(nx, ny, nz); out.col.push(col[0] * shade, col[1] * shade, col[2] * shade);
+    }
+  });
+  // 이음새 가림막: 윗변 = 격자 이음새 변, 아래 = 깊은 곳. 안쪽(+고원 쪽)을 향한다. 안쪽 지형 벽과 겹치지 않게 0.05m 바깥에 둔다
+  const DEEP = -90, cliffC = tintColor(calm(tileColor(look, 'cliff', o.seed, 2, 0, 0, false, 1), refOf('cliff', false)), -30, 0, tint);
+  field.outer.forEachSeamSegment((p0, p1, nx, nz) => {
+    const off = (p: V3): V3 => [p[0] - nx * 0.05, p[1], p[2] - nz * 0.05];
+    const a = off(p0), b = off(p1), c: V3 = [b[0], DEEP, b[2]], d: V3 = [a[0], DEEP, a[2]];
+    for (const tri of [[a, b, c], [a, c, d]] as V3[][]) {
+      const ux = tri[1][0] - tri[0][0], uy = tri[1][1] - tri[0][1], uz = tri[1][2] - tri[0][2], vx = tri[2][0] - tri[0][0], vy = tri[2][1] - tri[0][1], vz = tri[2][2] - tri[0][2];
+      const cx = uy * vz - uz * vy, cz = ux * vy - uy * vx;
+      const ordered = cx * nx + cz * nz >= 0 ? tri : [tri[0], tri[2], tri[1]];
+      for (const p of ordered) { out.pos.push(p[0], p[1], p[2]); out.nor.push(nx, 0, nz); out.col.push(cliffC[0], cliffC[1], cliffC[2]); }
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -216,5 +317,12 @@ export function buildCollisionMesh(field: TerrainField, half: number): Collision
     } else if (w.nx > 0) quad([w.fixed, y0, w.b], [w.fixed, y0, w.a], [w.fixed, y1, w.a], [w.fixed, y1, w.b]);
     else quad([w.fixed, y0, w.a], [w.fixed, y0, w.b], [w.fixed, y1, w.b], [w.fixed, y1, w.a]);
   }
+  // 굴곡 칸: 렌더와 같은 삼각형 (충돌 윗면). 감김 순서는 위쪽(+y) 법선
+  forEachReliefTriangle(field, half, (a, b, c) => {
+    const b0 = v.length / 3;
+    const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+    v.push(...a, ...b, ...c);
+    if (ny >= 0) idx.push(b0, b0 + 1, b0 + 2); else idx.push(b0, b0 + 2, b0 + 1);
+  });
   return { vertices: new Float32Array(v), indices: new Uint32Array(idx) };
 }

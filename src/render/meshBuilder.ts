@@ -236,3 +236,46 @@ export function sampleRings(rings: readonly LoftRing[], y: number) {
   const l = (p: number, q: number) => p + (q - p) * t;
   return { rx: l(a.rx, b.rx), rz: l(a.rz, b.rz), cx: l(a.cx ?? 0, b.cx ?? 0), cz: l(a.cz ?? 0, b.cz ?? 0) };
 }
+
+/** 단조 3차 에르미트(PCHIP) 기울기: 극값에서 0 → 급한 단차(소매 접힘 등)에서 오버슈트하지 않는다 */
+function pchipSlopes(x: readonly number[], y: readonly number[]): number[] {
+  const n = x.length, h: number[] = [], d: number[] = [];
+  for (let i = 0; i + 1 < n; i++) { h.push(x[i + 1] - x[i]); d.push((y[i + 1] - y[i]) / (h[i] || 1e-9)); }
+  const m = new Array<number>(n).fill(0);
+  if (n === 2) { m[0] = m[1] = d[0]; return m; }
+  for (let i = 1; i < n - 1; i++) {
+    if (d[i - 1] * d[i] <= 0) { m[i] = 0; continue; }
+    const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1];
+    m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+  }
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  return m;
+}
+
+/**
+ * 링 사이에 곡선 보간 링을 끼워 윤곽을 부드럽게 하고 삼각형을 늘린다 (링당 factor-1 개 추가).
+ * y·rx·rz·cx·cz·ao·dy* 는 y 에 대해 PCHIP 보간, 색은 아래 링 값 유지 (띠 색 경계 불변).
+ */
+export function smoothRings(rings: readonly LoftRing[], factor: number): LoftRing[] {
+  if (factor <= 1 || rings.length < 2) return [...rings];
+  const ys = rings.map((r) => r.y);
+  const fields = ['rx', 'rz', 'cx', 'cz', 'ao', 'dyF', 'dyS', 'dyB'] as const;
+  const slopes = Object.fromEntries(fields.map((f) => [f, pchipSlopes(ys, rings.map((r) => r[f] ?? (f === 'ao' ? 1 : 0)))])) as Record<(typeof fields)[number], number[]>;
+  const out: LoftRing[] = [];
+  for (let i = 0; i + 1 < rings.length; i++) {
+    const a = rings[i], b = rings[i + 1], h = b.y - a.y;
+    for (let s = 0; s < factor; s++) {
+      if (s === 0) { out.push(a); continue; }
+      const t = s / factor, t2 = t * t, t3 = t2 * t;
+      const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+      const r: LoftRing = { y: a.y + h * t, rx: 0, rz: 0, c: a.c };
+      for (const f of fields) {
+        const v0 = a[f] ?? (f === 'ao' ? 1 : 0), v1 = b[f] ?? (f === 'ao' ? 1 : 0);
+        (r as unknown as Record<string, number>)[f] = h00 * v0 + h10 * h * slopes[f][i] + h01 * v1 + h11 * h * slopes[f][i + 1];
+      }
+      out.push(r);
+    }
+  }
+  out.push(rings[rings.length - 1]);
+  return out;
+}

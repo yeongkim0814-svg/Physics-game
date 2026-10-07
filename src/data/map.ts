@@ -1,6 +1,6 @@
 import type { MobKind } from '../core/types';
-import { canyonLedges, terraceBlocks, type StairDef, type TerraceDef, type Vec3 } from '../world/mapGen';
-import type { BluffDef, MassifDef, RampDef, TerrainPad } from '../world/terrain/terrainField';
+import { canyonLedges, stairBlocks, terraceBlocks, type StairDef, type TerraceDef, type Vec3 } from '../world/mapGen';
+import type { BluffDef, MassifDef, RampDef, TerrainMapData, TerrainPad } from '../world/terrain/terrainField';
 
 /**
  * 말라붙은 해안 도시 일부 (GAME_DESIGN 9절). 단위 m, 좌표 x/z 는 맵 중심 기준, 지면 윗면 y=0.
@@ -51,7 +51,7 @@ const terraceBlocksAll: BlockDef[] = TERRACES.flatMap((t) => terraceBlocks(t).ma
  * 평탄 패드·램프는 노이즈·둔덕보다 우선한다 (협곡 카빙은 패드보다도 우선).
  */
 const TERRAIN_PADS: TerrainPad[] = [
-  { id: 'spawn', center: [0, 52], radius: 18, y: 0, blend: 8, note: '스폰 평지' },
+  { id: 'spawn', center: [0, 52], radius: 18, y: 0, blend: 8, reliefRadius: 2.5, note: '스폰 평지 (스폰 지점 주변 2.5m 만 굴곡 금지)' },
   { id: 'twinDrop', center: [T.x, T.z - 6], radius: 40, y: 0, blend: 14, note: '쌍둥이 낙하 구역 용지: 탑 밑동을 품은 반경 40m 평탄 패드 (협곡 북쪽 가장자리 z=-18 에 접하도록 탑 중심에서 6m 북쪽) — 다음 게임플레이 작업 (b)' },
 ];
 /** 고원 둔덕 (계단 절벽 전경용, top 은 층 높이 3m 의 배수). 오를 수 없는 3m 층 단차라서 걸어서 오르는 길은 RAMPS 가 만든다 */
@@ -166,4 +166,17 @@ export const MAP = {
    * (VISUAL.lowpoly.backdrop.beaconAzimuthDeg 와 일치해야 한다 — 테스트). 안개 너머라 위치만 기록하고 메시는 없다.
    */
   destinations: [{ id: 'observatory', pos: [57, 120, -325] as Vec3, note: '관측소: 성 실루엣 정상의 빛기둥' }],
+};
+
+/**
+ * 하이트필드 입력 전체: 협곡 + 레이아웃 + 굴곡 금지 구역(건물·계단 발자국). 건물은 y=0 에 놓이므로 그 주변은 굴곡 0 이어야 맞닿는다.
+ * 지형 생성(GameWorld)·테스트는 이것을 쓴다.
+ */
+export const TERRAIN_DATA: TerrainMapData = {
+  canyon: MAP.canyon,
+  ...MAP.terrain,
+  keepOut: [
+    ...MAP.blocks.map((b): [number, number, number, number] => [b.pos[0] - b.size[0] / 2, b.pos[2] - b.size[2] / 2, b.pos[0] + b.size[0] / 2, b.pos[2] + b.size[2] / 2]),
+    ...MAP.stairs.flatMap((s) => stairBlocks(s).map((p): [number, number, number, number] => [p.pos[0] - p.size[0] / 2, p.pos[2] - p.size[2] / 2, p.pos[0] + p.size[0] / 2, p.pos[2] + p.size[2] / 2])),
+  ],
 };

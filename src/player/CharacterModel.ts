@@ -2,6 +2,7 @@ import type * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import { placeholderCharacter } from './placeholderCharacter';
 import { protagonistCharacter } from './protagonistCharacter';
+import { scientistCharacter } from './scientistCharacter';
 import { voxelCharacter } from './voxelCharacter';
 
 /** 캐릭터가 매 프레임 받는 상태. 모델은 이것만 보고 자세를 정한다 */
@@ -38,28 +39,36 @@ export interface CharacterModel {
 }
 
 /**
- * 캐릭터 모델 선택: 기본 VISUAL.characterModel, 브라우저에서는 URL `?char=legacy|voxel` 로 덮어쓴다 (비교·롤백용).
+ * 캐릭터 모델 선택: 기본 VISUAL.characterModel, 브라우저에서는 URL `?char=scientist|loft|voxel` 로 덮어쓴다 (비교용).
  */
-export function resolveCharacterModel(): 'voxel' | 'legacy' {
+export function resolveCharacterModel(): 'scientist' | 'voxel' | 'loft' {
   try {
     if (typeof location !== 'undefined') {
       const q = new URLSearchParams(location.search).get('char');
-      if (q === 'legacy' || q === 'voxel') return q;
+      if (q === 'scientist' || q === 'loft' || q === 'voxel') return q;
     }
   } catch { /* 검색 문자열을 못 읽으면 기본값 */ }
   return VISUAL.characterModel;
 }
 
 /**
- * 교체 지점: 기본은 도면 복셀 카빙 주인공(voxelCharacter, M1j). `?char=legacy` 또는 VISUAL.characterModel='legacy' 면 M1h 로프트 메시(protagonistCharacter).
- * 생성에 실패하면(캔버스 없는 환경 등) 한 단계씩 폴백: voxel → legacy → placeholder.
+ * 교체 지점: 기본은 후드 로브 과학자(scientistCharacter). `?char=loft` 는 삼각형 로프트 주인공(protagonistCharacter), `?char=voxel` 은 복셀 카빙(voxelCharacter).
+ * 생성에 실패하면(캔버스 없는 환경 등) 한 단계씩 폴백: scientist → voxel/loft → placeholder.
  */
 export function createPlayerCharacter(): CharacterModel {
-  if (resolveCharacterModel() === 'voxel') {
+  const choice = resolveCharacterModel();
+  if (choice === 'scientist') {
+    try {
+      return scientistCharacter();
+    } catch (e) {
+      console.warn('scientistCharacter 생성 실패, loft 주인공으로 대체', e);
+    }
+  }
+  if (choice === 'voxel') {
     try {
       return voxelCharacter();
     } catch (e) {
-      console.warn('voxelCharacter 생성 실패, legacy 주인공으로 대체', e);
+      console.warn('voxelCharacter 생성 실패, loft 주인공으로 대체', e);
     }
   }
   try {

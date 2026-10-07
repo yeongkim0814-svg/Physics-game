@@ -45,6 +45,11 @@
 | G9 | 청록 발광 기술(회로선 발광 마스크 = 장식 정적, 전도체 맥동, 수치 `VISUAL.lowpoly.tech`) | done |
 | G5 | 모듈 키트 부분(`world/techModules.ts` 기둥·아치·벽·링, 고원 바깥 시각 전용). 건축 확장은 A4 | doing |
 | H1 | 시작 직후 추락 수정: 첫 프레임 음수 dt 가 시간을 거꾸로 돌려 얇은 trimesh 지면을 통과 → `game/frameDt.ts` 로 dt 하한 0·상한 `PERF.maxDt` | done |
+| C1 | 주인공 삼각형 메시 강화: 기본을 복셀→로프트로 전환(`?char=loft|voxel`), 12각/10각 단면 + PCHIP 보간 링 + 3D 디테일로 ≈1,900 → ≈4,700 tri | done |
+| C2 | 주인공 재설계: 후드 로브 과학자(`scientistCharacter`, 컨셉 시트 기준). 플랫 셰이딩 로프트 대신 스무스 곡면 빌더(`smoothMesh.ts`: 링 로프트+PCHIP·주름·아랫단 요철·후드 구멍·표면 띠/관) + 재질 `smooth` 옵션, 로브 아랫자락이 다리 스윙을 따라 흔들림, 기본 모델 전환(`?char=scientist|loft|voxel`), ≈12,100 tri / 메시 12개 | done |
+| T1 | 지형·건물 삼각형 패싯: 공용 `world/facet.ts`(불규칙 삼각 분할·안쪽 정점 흔들림·측면 안쪽 패임·걸을 수 없는 윗면 기복·삼각형별 색), 충돌 메시 불변 | done |
+| T2 | 지형 굴곡: 고원 릴리프(렌더=충돌 삼각형 격자, 건물/패드 주변 0), 바깥 연속 변위, 절벽 경사(talus), 색은 경사(조명)에서 — `docs/TERRAIN.md` | done |
+| T3b | 고원 바깥 상자 모양 제거: 연속 높이 삼각 격자(6m/24m 두 겹, 이음새 가림막, groundY·평탄 판정 연동), 렌더 삼각형 30k → 22.5k | done |
 | A3 | 아트 Phase 3 World Streaming (C5: 맵이 3×3 청크를 넘을 때) | todo |
 | A4~A8 | 아트 Phase 4 Environment · 5 Landmark · 6 Character 보강 · 7 Interaction · 8 Final Art Pass (C10: M2 통과 후 4 착수) | todo |
 | M1(b) | todo | todo |

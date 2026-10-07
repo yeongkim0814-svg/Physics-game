@@ -42,7 +42,7 @@ export function buildTechModules(scene: THREE.Scene, field: TerrainField) {
     const kind = KIND_LIST[Math.floor(p.r[0] * KIND_LIST.length) % KIND_LIST.length];
     const s = 1.1 + p.r[1] * 0.9;
     groups.get(kind)!.push(new THREE.Matrix4().compose(
-      new THREE.Vector3(p.x, field.surface(p.x, p.z), p.z), q.setFromAxisAngle(up, Math.round(p.r[2] * 4) * (Math.PI / 2) + (p.r[1] - 0.5) * 0.3), new THREE.Vector3(s, s, s)));
+      new THREE.Vector3(p.x, field.groundY(p.x, p.z), p.z), q.setFromAxisAngle(up, Math.round(p.r[2] * 4) * (Math.PI / 2) + (p.r[1] - 0.5) * 0.3), new THREE.Vector3(s, s, s)));
     colors.get(kind)!.push(color(p.r[1]));
   }
   // 떠 있는 팔각 링: 일부 기둥/아치 위치 위에 세로로 세운다
@@ -50,7 +50,7 @@ export function buildTechModules(scene: THREE.Scene, field: TerrainField) {
   const rings: THREE.Matrix4[] = [], ringColors: number[] = [];
   pts.slice(0, M.rings).forEach((p, i) => {
     rings.push(new THREE.Matrix4().compose(
-      new THREE.Vector3(p.x, field.surface(p.x, p.z) + 34 + i * 6, p.z), q.setFromAxisAngle(up, p.r[2] * Math.PI), new THREE.Vector3(1 + p.r[0], 1 + p.r[0], 1 + p.r[0])));
+      new THREE.Vector3(p.x, field.groundY(p.x, p.z) + 34 + i * 6, p.z), q.setFromAxisAngle(up, p.r[2] * Math.PI), new THREE.Vector3(1 + p.r[0], 1 + p.r[0], 1 + p.r[0])));
     ringColors.push(color(p.r[2]));
   });
 

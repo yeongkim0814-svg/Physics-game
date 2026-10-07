@@ -29,6 +29,8 @@ export const VISUAL = {
       seed: 23,
       tile: { block: 3.2, ground: 6, far: 28, stair: 8, cliff: 9, ledge: 4, landmark: 20 },
       maxTilesPerAxis: 40,
+      /** 삼각 분할 패싯 (world/facet.ts): 불규칙 삼각형·안쪽으로 패인 측면·걸을 수 없는 윗면의 기복·삼각형별 색 */
+      facet: { jitter: 0.3, sideIn: 0.38, topLift: 0.12, topLiftMax: 1.0, triShade: 0.03, minSplit: 3.5, minSplitTop: 4, colorVar: 0.4, lean: 0.45, leanMax: 3, skirt: 0.25, range: 220 },
     },
     /** 근경 빛기둥(탑 위): 얇은 평면 2장 × 층 2겹, 안개 무시·가산 발광·느린 맥동 */
     beam: { height: 440, coreWidth: 0.9, outerWidth: 3.4, pulseSpeed: 0.9, pulseAmp: 0.25, coreOpacity: 0.95, outerOpacity: 0.32, spin: 0.05 },
@@ -57,10 +59,10 @@ export const VISUAL = {
     desat: { regions: [] as [number, number, number, number][], softness: 0.5, landmarkBase: 0.88 },
     /** 저해상도 절차 텍스처 (G3, render/texKit.ts): 월드 좌표 트리플래너, NearestFilter. size = 한 장 한 변 px, tile = 한 장이 덮는 월드 길이(m), amp = 알베도 변조 강도.
      * 밉맵이 없어 멀리서 반짝이므로 fadeNear~fadeEnd(m) 사이에서 변조를 0 으로, 발광선은 평균 glowAvg 로 수렴시킨다 */
-    texture: { size: 32, seed: 7, amp: 0.3, terrainTile: 6, metalTile: 3, techTile: 4, fadeNear: 45, fadeEnd: 150, glowAvg: 0.3 },
+    texture: { size: 32, seed: 7, amp: 0.3, terrainTile: 6, metalTile: 3, techTile: 4, fadeNear: 45, fadeEnd: 150, glowAvg: 0.06 },
     /** 청록 발광 기술 (G9). 장식(선만, 정적·약함)과 전도체 단서(면 전체, 맥동·더 밝음)를 구분한다 */
     tech: {
-      decorColor: 0x46b4cf, decorGlow: 1.0,
+      decorColor: 0x46b4cf, decorGlow: 0.35,
       /** 전도체 맥동: 평상시 발광 × (1 ± amp·sin(2π·rate·t)) */
       conductorPulse: { amp: 0.35, rate: 0.6 },
       /** 기술 모듈 키트 (G5, world/techModules.ts): 고원 바깥 시각 전용 배치 */
@@ -70,17 +72,18 @@ export const VISUAL = {
     conductorGlow: 0.3,
   },
   /**
-   * 주인공 모델 선택 (M1j): 'voxel' = 도면 복셀 카빙(player/voxelCharacter.ts, 기본) / 'legacy' = M1h 로프트 메시(폴백, 사용자 승인 전까지 유지).
-   * URL `?char=legacy|voxel` 로 덮어쓸 수 있다 (모듈 로드 시 한 번 결정).
+   * 주인공 모델 선택: 'scientist' = 후드 로브 과학자(player/scientistCharacter.ts, 기본: 스무스 곡면 로프트, 얼굴·옷 안 보임) /
+   * 'loft' = 삼각형 로프트 메시(player/protagonistCharacter.ts, 기본: 링 단면을 곡선 보간한 로우폴리 + 3D 디테일) /
+   * 'voxel' = 도면 복셀 카빙(player/voxelCharacter.ts, 사각 면 위주라 비교용). URL `?char=loft|voxel` 로 덮어쓸 수 있다 (모듈 로드 시 한 번 결정).
    */
-  characterModel: 'voxel' as 'voxel' | 'legacy',
+  characterModel: 'scientist' as 'scientist' | 'loft' | 'voxel',
   /** 복셀 주인공 (data: src/assets/protagonist_voxels.json, 생성: scripts/carve_character.py). 자세 계산은 아래 `character` 를 재사용하고 일부만 덮어쓴다 */
   voxelCharacter: {
     /** 복셀 AO: 가림 이웃 수 0(완전 가림)..3(가림 없음) → 정점색 배율 */
     aoCurve: [0.6, 0.74, 0.88, 1] as [number, number, number, number],
     /** AO 를 면 단위(꼭짓점 평균)로 통일: 같은 색 면의 병합이 늘어 삼각형이 크게 준다. false = 꼭짓점별(부드럽지만 약 2배 삼각형) */
     aoPerFace: true,
-    /** 정점색 배율 = 시간대 프리셋 character.exposure × 이 값 (도면 색은 이미 때 탄 어두운 톤이라 legacy 보다 높게). */
+    /** 정점색 배율 = 시간대 프리셋 character.exposure × 이 값 (도면 색은 이미 때 탄 어두운 톤이라 loft 보다 높게). */
     exposureScale: 1.19,
     /** 도면의 직립 자세에 맞춘 기본 자세 덮어쓰기 (공통 character 값 위에 얹는다) */
     pose: { restLean: 0.03, kneeRest: 0.04, armRestOut: 0, leftElbowRest: 0.1, leftArmRest: 0.0, restArm: 0.15, weaponElbowRest: 0.25 },
@@ -97,6 +100,18 @@ export const VISUAL = {
     idleGlow: 0.6,
     /** 예산 (단위 테스트가 검사): 캐릭터 삼각형 / 드로우콜(메시) */
     budget: { triangles: 6000, drawCalls: 20 },
+  },
+  /** 후드 로브 과학자 (data/scientist.ts 사양). 자세 계산은 `character` 를 재사용하고 일부만 덮어쓴다 */
+  scientist: {
+    pose: { restLean: 0.04, kneeRest: 0.06, armRestOut: 0.14, leftElbowRest: 0.12, leftArmRest: 0.02, restArm: 0.85, weaponElbowRest: 0.6, bob: 0.025 },
+    /** 로브 아랫단 앞/뒤 자락이 다리 스윙을 따라가는 비율 */
+    skirtFollow: 0.6,
+    /** 로브 자락 살랑임 (voxelCharacter.sash 와 같은 형식) */
+    sway: { rate: 2.6, ampIdle: 0.02, ampMove: 0.1, windBack: 0.16, sideRatio: 0.6, phaseBack: 1.7 },
+    /** 지오메트리 단면 수 (전체 둘레 기준 열 개수) / 천 텍스처 한 장이 덮는 길이(m) */
+    detail: { robeSides: 56, limbSides: 18, tile: 0.4 },
+    /** 예산 (단위 테스트가 검사): 캐릭터 삼각형 / 드로우콜(메시, 장치 제외) */
+    budget: { triangles: 14000, drawCalls: 16 },
   },
   /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
   character: {

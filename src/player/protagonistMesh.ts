@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { VISUAL } from '../config/settings';
 import {
-  CHEST, CROWN_SPIKES, FACE_TEX, FOREARM, FRINGE, FRINGE_BASE, HEAD, NOSE, PCOL, SHIN, THIGH, TORSO, UPPER_ARM, WATCH, WATCH_FACE,
+  BACK_HAIR, CHEST, HAIR_TUFTS, FACE_TEX, FOREARM, FRINGE, FRINGE_BASE, HEAD, NOSE, PCOL, SHIN, THIGH, TORSO, UPPER_ARM, WATCH, WATCH_FACE,
   type BoxSpec, type GroupSpec, type LoftSpec,
 } from '../data/protagonist';
-import { MeshBuilder, type ShadeOpts, type V3 } from '../render/meshBuilder';
+import { hash3 } from '../world/facet';
+import { MeshBuilder, smoothRings, type ShadeOpts, type V3 } from '../render/meshBuilder';
 
 /**
  * 주인공 지오메트리 (순수 THREE 지오메트리 — canvas 없이 테스트 가능).
@@ -52,7 +53,7 @@ function buildGroup(spec: GroupSpec, b: Builders, side: 1 | -1, extra: { head?: 
       target.setMatrix(loftMatrix(l, s));
       b.face.setMatrix(loftMatrix(l, s));
       const isSkull = extra.head && l.name === 'skull';
-      target.loft(l.rings, {
+      target.loft(l.smooth ? smoothRings(l.rings, l.smooth) : l.rings, {
         sides: l.sides, offsetDeg: l.offsetDeg, capBottom: l.capBottom, capTop: l.capTop, innerAO: l.innerAO, jitter: l.jitter,
         uvTile: l.channel === 'cloth' ? L.fabricTile : 0,
         // 두개골 정면 5면 × 얼굴 링 구간 → 얼굴 채널 (k = 9,10,11,0,1: 앞쪽 6정점 사이)
@@ -101,10 +102,27 @@ function buildHead(exposure: number): GroupGeo {
     ];
     b.plain.pyramid(base, [f.x, f.tipY, f.tipZ], PCOL.hair, [0.85, 1]);
   }
-  // 윗머리 결
-  for (const c of CROWN_SPIKES) {
-    const y0 = 0.262;
-    b.plain.pyramid([[c.x - c.w / 2, y0, c.z], [c.x + c.w / 2, y0, c.z], [c.x, y0, c.z + c.w * 0.8]], [c.x, c.tipY, c.tipZ], PCOL.hairLight, [0.9, 1]);
+  // 머리카락 덩어리: 타원체 표면 법선 방향 삼각뿔
+  {
+    const T = HAIR_TUFTS, [cx, cy, cz] = T.center, [rx, ry, rz] = T.radii, h = (i: number, k: number) => hash3(i, k, 5, T.seed);
+    for (let i = 0, made = 0; made < T.count && i < T.count * 6; i++) {
+      const el = (T.elev[0] + (T.elev[1] - T.elev[0]) * h(i, 1)) * (Math.PI / 180), az = (h(i, 2) * 2 - 1) * Math.PI;
+      if (Math.abs(az) < (T.faceAz * Math.PI) / 180 && el < (T.faceElev * Math.PI) / 180) continue;
+      const ce = Math.cos(el), se = Math.sin(el), sa = Math.sin(az), ca = Math.cos(az);
+      const p: V3 = [cx + rx * ce * sa, cy + ry * se, cz - rz * ce * ca];
+      const nv = new THREE.Vector3(ce * sa / rx, se / ry, -ce * ca / rz).normalize();
+      const t1 = new THREE.Vector3().crossVectors(nv, Math.abs(nv.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).normalize();
+      const t2 = new THREE.Vector3().crossVectors(nv, t1).normalize();
+      const w = T.width[0] + (T.width[1] - T.width[0]) * h(i, 3), len = T.len[0] + (T.len[1] - T.len[0]) * h(i, 4);
+      const o = (u: number, v: number): V3 => [p[0] + t1.x * u + t2.x * v - nv.x * 0.008, p[1] + t1.y * u + t2.y * v - nv.y * 0.008, p[2] + t1.z * u + t2.z * v - nv.z * 0.008];
+      const tip: V3 = [p[0] + nv.x * len, p[1] + nv.y * len, p[2] + nv.z * len];
+      b.plain.pyramid([o(-w / 2, -w * 0.3), o(w / 2, -w * 0.3), o(0, w * 0.6)], tip, h(i, 6) > 0.5 ? PCOL.hairLight : PCOL.hair, [0.85, 1]);
+      made++;
+    }
+  }
+  // 뒤통수 아랫머리
+  for (const h of BACK_HAIR) {
+    b.plain.pyramid([[h.x - h.w / 2, h.y, 0.108], [h.x + h.w / 2, h.y, 0.108], [h.x, h.y + 0.014, 0.12]], [h.x, h.y - 0.05, 0.13], PCOL.hair, [0.8, 1]);
   }
   return finish(b);
 }
