@@ -72,10 +72,11 @@ export const VISUAL = {
     conductorGlow: 0.3,
   },
   /**
-   * 주인공 모델 선택: 'loft' = 삼각형 로프트 메시(player/protagonistCharacter.ts, 기본: 링 단면을 곡선 보간한 로우폴리 + 3D 디테일) /
+   * 주인공 모델 선택: 'scientist' = 후드 로브 과학자(player/scientistCharacter.ts, 기본: 스무스 곡면 로프트, 얼굴·옷 안 보임) /
+   * 'loft' = 삼각형 로프트 메시(player/protagonistCharacter.ts, 기본: 링 단면을 곡선 보간한 로우폴리 + 3D 디테일) /
    * 'voxel' = 도면 복셀 카빙(player/voxelCharacter.ts, 사각 면 위주라 비교용). URL `?char=loft|voxel` 로 덮어쓸 수 있다 (모듈 로드 시 한 번 결정).
    */
-  characterModel: 'loft' as 'loft' | 'voxel',
+  characterModel: 'scientist' as 'scientist' | 'loft' | 'voxel',
   /** 복셀 주인공 (data: src/assets/protagonist_voxels.json, 생성: scripts/carve_character.py). 자세 계산은 아래 `character` 를 재사용하고 일부만 덮어쓴다 */
   voxelCharacter: {
     /** 복셀 AO: 가림 이웃 수 0(완전 가림)..3(가림 없음) → 정점색 배율 */
@@ -99,6 +100,18 @@ export const VISUAL = {
     idleGlow: 0.6,
     /** 예산 (단위 테스트가 검사): 캐릭터 삼각형 / 드로우콜(메시) */
     budget: { triangles: 6000, drawCalls: 20 },
+  },
+  /** 후드 로브 과학자 (data/scientist.ts 사양). 자세 계산은 `character` 를 재사용하고 일부만 덮어쓴다 */
+  scientist: {
+    pose: { restLean: 0.04, kneeRest: 0.06, armRestOut: 0.14, leftElbowRest: 0.12, leftArmRest: 0.02, restArm: 0.85, weaponElbowRest: 0.6, bob: 0.025 },
+    /** 로브 아랫단 앞/뒤 자락이 다리 스윙을 따라가는 비율 */
+    skirtFollow: 0.6,
+    /** 로브 자락 살랑임 (voxelCharacter.sash 와 같은 형식) */
+    sway: { rate: 2.6, ampIdle: 0.02, ampMove: 0.1, windBack: 0.16, sideRatio: 0.6, phaseBack: 1.7 },
+    /** 지오메트리 단면 수 (전체 둘레 기준 열 개수) / 천 텍스처 한 장이 덮는 길이(m) */
+    detail: { robeSides: 56, limbSides: 18, tile: 0.4 },
+    /** 예산 (단위 테스트가 검사): 캐릭터 삼각형 / 드로우콜(메시, 장치 제외) */
+    budget: { triangles: 14000, drawCalls: 16 },
   },
   /** 플레이스홀더 캐릭터 절차 애니메이션 (각도 rad). 걷기 속도 기준은 TUNING.player.moveSpeed */
   character: {

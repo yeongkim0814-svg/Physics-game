@@ -25,6 +25,8 @@ export interface MaterialOpts {
   desaturate?: number;
   /** (로우폴리) 알베도 × 이 색을 자체 발광으로 더한다: 그늘 면에서도 색이 살게 (조명 무관, 알베도에 비례하는 따뜻한 보정광) */
   selfGlow?: readonly [number, number, number];
+  /** true 면 플랫 셰이딩 대신 정점 법선으로 부드럽게 (유기적 곡면 캐릭터용. 지오메트리가 인덱스 + 스무스 법선이어야 한다) */
+  smooth?: boolean;
   /** (로우폴리) 림 라이트: 시선과 비스듬한 가장자리에 더하는 얇은 역광 효과. color 0xRRGGBB, strength 0..1, power 지수(클수록 얇음) */
   rim?: { color: number; strength: number; power: number };
 }
@@ -165,10 +167,10 @@ function patchLowpoly(material: THREE.Material, desat: { value: number }, o: Mat
   };
 }
 
-/** 모든 메시의 기본 재질 팩토리. Lambert + flatShading + 탈색·높이 안개·selfGlow·rim 패치 */
+/** 모든 메시의 기본 재질 팩토리. Lambert + flatShading(smooth 옵션으로 해제) + 탈색·높이 안개·selfGlow·rim 패치 */
 export function createMaterial(color: number, o: MaterialOpts = {}) {
   const m = new THREE.MeshLambertMaterial({
-    color, flatShading: true, emissive: o.emissive ?? 0x000000, fog: o.fog ?? true,
+    color, flatShading: !o.smooth, emissive: o.emissive ?? 0x000000, fog: o.fog ?? true,
     ...(o.map ? { map: o.map } : {}), // map: undefined 를 넘기면 three 가 경고한다
     ...(o.emissiveMap ? { emissiveMap: o.emissiveMap } : {}),
     ...(o.vertexColors ? { vertexColors: true } : {}),

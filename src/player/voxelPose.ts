@@ -26,12 +26,14 @@ export function skirtAngles(pose: Pick<Pose, 'thighL' | 'thighR'>, follow: numbe
 }
 
 export interface SashAngles { x: number; z: number }
+/** 천 자락 살랑임 설정 (voxelCharacter.sash 와 같은 형식, 다른 캐릭터가 값만 바꿔 재사용) */
+export interface SashConfig { rate: number; ampIdle: number; ampMove: number; windBack: number; sideRatio: number; phaseBack: number }
 
 /**
  * 어깨 천 자락 각 (rad). t = 누적 시간, speed = 수평 속력, back = 뒷자락 여부.
  * 진폭 = 정지 진폭 → 이동 진폭 (속도 비례), 이동하면 천이 뒤로 날린다(windBack, x 가 음수 = 아래 끝이 뒤로).
  */
-export function sashAngles(t: number, speed: number, back: boolean, S: typeof V.sash = V.sash, moveSpeed: number = TUNING.player.moveSpeed): SashAngles {
+export function sashAngles(t: number, speed: number, back: boolean, S: SashConfig = V.sash, moveSpeed: number = TUNING.player.moveSpeed): SashAngles {
   const amp = Math.min(speed / moveSpeed, 1.4);
   const a = S.ampIdle + (S.ampMove - S.ampIdle) * Math.min(amp, 1);
   const ph = back ? S.phaseBack : 0;
