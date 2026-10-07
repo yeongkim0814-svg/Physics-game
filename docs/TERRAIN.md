@@ -23,7 +23,7 @@
 |---|---|
 | `noise.ts` | 그라디언트 노이즈, fBm, 릿지 fBm, 도메인 워프 (시드 결정적) |
 | `terrainField.ts` | `TerrainField`: `continuous(x,z)` → 양자화 `height(x,z)` 순수 함수 + 2단 LOD 격자(`near`/`far`) + `surface(x,z)`(렌더·충돌과 같은 칸 단위 높이 질의) |
-| `terrainMesh.ts` | 격자 → 윗면 그리디 병합 + 수직 절벽 벽 → 렌더 메시(타일 모자이크) / 충돌 메시(합친 사각형) |
+| `terrainMesh.ts` | 격자 → 윗면 그리디 병합 + 수직 절벽 벽 → 렌더 메시(`facet.ts` 삼각 패싯: 불규칙 삼각형·절벽 안쪽 패임, 걸을 수 있는 윗면은 평평) / 충돌 메시(합친 사각형, 변경 없음) |
 | `reachability.ts` | 표면 높이 격자 + flood-fill 도달성 검사 (테스트·튜닝용 순수 함수) |
 | `terrain.test.ts` | 결정성·정확한 고원/협곡/패드·램프 경사·도달성(양성+음성 대조군)·충돌 메시 상한·벽 일치 |
 
@@ -75,6 +75,7 @@
 | 플레이 영역 보호(평탄 패드)·둔덕·램프 | `data/map.ts` `TERRAIN_PADS/BLUFFS/RAMPS` (테스트가 겹침·경사·도달성 검사) |
 | LOD 셀·범위 | `lod.nearHalf/nearCell/farCell/farRadius` (nearHalf 는 farCell 의 배수) |
 | 모자이크 거칠기·삼각형 | `TERRAIN_MESH.tile`, `maxTiles` |
+| 삼각 패싯(흔들림·패임·기복·분할 임계·적용 반경) | `VISUAL.lowpoly.terrain.facet` (`world/facet.ts`). 렌더 삼각형 ≈26.7k (패싯 전 22.1k) |
 | 안개 깊이·색 | `presets.*.fog.height` (top/falloff/density/color), `terrain.depthTint/farTint` |
 
 예산(태블릿): 프레임당 드로우콜 ≤ 80, 삼각형 ≤ 45k. 현재 ≈ 30콜 / 41~42k (지형 렌더 ≈ 19k, 충돌 trimesh ≈ 630). 초과하면 `tile.max/r0/wall`, `lod.farCell`, 메사 수 순으로 줄인다.
@@ -82,7 +83,7 @@
 ## 알려진 한계
 
 - 고원 안은 평평하다(경관은 가장자리·바깥에서 나온다). 둔덕 3개와 램프 2개가 유일한 고도 변화.
-- 계단형 양자화라 절벽이 상자 같다(목표 이미지의 자잘한 픽셀 모자이크·아치·폭포·건축물은 Phase 4·5).
+- 절벽 높이는 계단형 양자화지만 면은 삼각 패싯으로 패이고 흔들린다(걸을 수 있는 윗면·충돌은 그대로 평평/수직). 남은 것: (목표 이미지의 자잘한 픽셀 모자이크·아치·폭포·건축물은 Phase 4·5).
 - 근거리 격자 밖(반경 120m)은 셀 24m 라 메사 윤곽이 거칠다.
 - trimesh 에 `FIX_INTERNAL_EDGES` 를 켜면 둔덕 모서리(0.2m 단차 윗면 가장자리)에서 캐릭터 컨트롤러 `computedGrounded` 가 false 로 나와 자동 계단이 실패한다(실측). 대신 병합된 큰 사각형이라 내부 모서리가 적고, 걷기·돌 낙하·카메라 시험은 모두 통과했다.
 - 도달성 검사는 2.5D(표면 하나)라 다리 상판 아래 통로 같은 겹침은 표현하지 못한다(상판 아래 협곡 바닥은 상판이 없는 틈으로 이어짐).

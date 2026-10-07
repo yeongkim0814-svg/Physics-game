@@ -232,7 +232,7 @@ describe('지형 메시', () => {
   it('렌더 메시: 비어 있지 않고 법선 단위·색 0~1·삼각형 예산 이하', () => {
     const tris = mesh.positions.length / 9;
     expect(tris).toBeGreaterThan(5000);
-    expect(tris).toBeLessThanOrEqual(24000); // 태블릿 예산(총 45k)에서 지형 몫
+    expect(tris).toBeLessThanOrEqual(28000); // 태블릿 예산(총 45k)에서 지형 몫 (삼각 패싯 +20%: 반경 range 안쪽만 분할)
     for (let i = 0; i < mesh.normals.length; i += 3 * 97) {
       expect(Math.hypot(mesh.normals[i], mesh.normals[i + 1], mesh.normals[i + 2])).toBeCloseTo(1, 4);
     }

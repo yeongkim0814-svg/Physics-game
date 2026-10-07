@@ -108,10 +108,10 @@ export class GameWorld {
   private flushTerrain() {
     const T = VISUAL.lowpoly.terrain;
     const parts: MeshData[] = [];
-    if (this.terrainSpecs.length) parts.push(buildBlockMesh(this.terrainSpecs, LP.terrain as TerrainLook, T.maxTilesPerAxis, T.seed));
+    if (this.terrainSpecs.length) parts.push(buildBlockMesh(this.terrainSpecs, LP.terrain as TerrainLook, T.maxTilesPerAxis, T.seed, T.facet));
     if (this.terrainField) {
       const t0 = performance.now();
-      const hf = buildTerrainMesh(this.terrainField, LP.terrain as TerrainLook, { depth: LP.terrain.depthTint, wall: LP.terrain.depthTint.wall, far: LP.terrain.farTint }, { ...TERRAIN_MESH, topPalette: TERRAIN_MESH.topPalette });
+      const hf = buildTerrainMesh(this.terrainField, LP.terrain as TerrainLook, { depth: LP.terrain.depthTint, wall: LP.terrain.depthTint.wall, far: LP.terrain.farTint }, { ...TERRAIN_MESH, topPalette: TERRAIN_MESH.topPalette, facet: T.facet, walkHalf: TERRAIN_COLLISION.half + 2 });
       this.terrainStats.meshMs = performance.now() - t0;
       this.terrainStats.renderTris = hf.positions.length / 9;
       parts.push(hf);

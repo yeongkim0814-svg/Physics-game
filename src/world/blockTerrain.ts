@@ -1,7 +1,11 @@
 // 블록 지형 생성기 (M1i, 순수 계산: THREE 의존 없음 → 단위 테스트 대상).
-// 박스의 각 면을 N×N 타일로 쪼개 타일마다 색(명도±·색조 약간 이동)을 흔든 "정점색 모자이크" 메시 데이터를 만든다.
+// 박스의 각 면을 N×N 격자로 쪼개 삼각형마다 색(명도±·색조 약간 이동)을 흔든 "정점색 삼각형 모자이크" 메시 데이터를 만든다 (world/facet.ts).
+// 안쪽 정점만 면내로 흔들고 측면은 안쪽으로 패여 사각 타일이 아니라 불규칙한 삼각형 패싯으로 읽힌다. 윗면은 높이가 변하지 않는다(밟는 면).
 // 플랫 셰이딩은 재질이 담당하므로 면(삼각형)마다 법선이 따로 나오는 비색인 삼각형 목록을 낸다.
 // 윗면은 이끼 혼합(확률), 측면은 밑동으로 갈수록 어두운 그늘 그라디언트. 시드 기반 결정적 난수.
+import { emitFacets, FACET_DEFAULT, hash3, splitCount, type FacetLook } from './facet';
+
+export { hash3 };
 
 export type V3 = [number, number, number];
 export type FaceKey = 'px' | 'nx' | 'py' | 'ny' | 'pz' | 'nz';
@@ -29,14 +33,6 @@ export interface MeshData { positions: Float32Array; normals: Float32Array; colo
 
 const ALL_FACES: FaceKey[] = ['px', 'nx', 'py', 'ny', 'pz', 'nz'];
 const DEFAULT_FACES: Record<FaceKey, boolean> = { px: true, nx: true, py: true, ny: false, pz: true, nz: true };
-
-/** 정수 3개 + 시드 → 0~1 (결정적 해시) */
-export function hash3(a: number, b: number, c: number, seed: number): number {
-  let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177) + Math.imul(seed | 0, 2147483647)) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  h = Math.imul(h ^ (h >>> 16), 2246822519);
-  return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
-}
 
 const unpack = (hex: number): V3 => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 const mix3 = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -95,55 +91,46 @@ function faceDefs(pos: V3, size: V3): FaceDef[] {
 }
 
 /** 박스 목록의 삼각형 수 예측 (생성 없이) */
-export function estimateTriangles(boxes: readonly BoxSpec[], maxTiles: number): number {
+export function estimateTriangles(boxes: readonly BoxSpec[], maxTiles: number, facet: FacetLook = FACET_DEFAULT): number {
   let n = 0;
   for (const b of boxes) {
     const faces = { ...DEFAULT_FACES, ...b.faces };
     for (const f of faceDefs(b.pos, b.size)) {
-      if (faces[f.key]) n += 2 * tileCount(f.uLen, b.tile, maxTiles) * tileCount(f.vLen, b.tile, maxTiles);
+      if (faces[f.key]) {
+        const ms = f.key === 'py' ? facet.minSplitTop : facet.minSplit;
+        n += 2 * splitCount(f.uLen, b.tile, maxTiles, ms) * splitCount(f.vLen, b.tile, maxTiles, ms);
+      }
     }
   }
   return n;
 }
 
 /**
- * 박스들을 하나의 비색인 삼각형 메시 데이터로 만든다 (타일마다 색 하나 + 측면은 정점별 밑동 그늘).
- * 삼각형 순서는 면 바깥에서 보아 반시계(CCW).
+ * 박스들을 하나의 비색인 삼각형 메시 데이터로 만든다 (삼각형마다 색 하나 + 측면은 정점별 밑동 그늘).
+ * 삼각형 순서는 면 바깥에서 보아 반시계(CCW). 정점은 박스 안(경계 포함)에만 놓인다: 윗면은 면내 흔들림만, 측면은 안쪽으로만 패인다.
  */
-export function buildBlockMesh(boxes: readonly BoxSpec[], look: TerrainLook, maxTiles: number, seed: number): MeshData {
-  const tris = estimateTriangles(boxes, maxTiles);
-  const positions = new Float32Array(tris * 9), normals = new Float32Array(tris * 9), colors = new Float32Array(tris * 9);
-  let o = 0;
+export function buildBlockMesh(boxes: readonly BoxSpec[], look: TerrainLook, maxTiles: number, seed: number, facet: FacetLook = FACET_DEFAULT): MeshData {
+  const out = { pos: [] as number[], nor: [] as number[], col: [] as number[] };
   for (const b of boxes) {
     const faces = { ...DEFAULT_FACES, ...b.faces };
     const bs = boxSeed(b.pos, b.size, seed);
     const baseY = b.pos[1] - b.size[1] / 2;
+    const defs = faceDefs(b.pos, b.size);
     ALL_FACES.forEach((_, fi) => {
-      const f = faceDefs(b.pos, b.size)[fi];
+      const f = defs[fi];
       if (!faces[f.key]) return;
-      const nu = tileCount(f.uLen, b.tile, maxTiles), nv = tileCount(f.vLen, b.tile, maxTiles);
-      const du = f.uLen / nu, dv = f.vLen / nv;
+      const ms = f.key === 'py' ? facet.minSplitTop : facet.minSplit;
+      const nu = splitCount(f.uLen, b.tile, maxTiles, ms), nv = splitCount(f.vLen, b.tile, maxTiles, ms);
       const side = f.key !== 'py' && f.key !== 'ny';
-      for (let j = 0; j < nv; j++) {
-        for (let i = 0; i < nu; i++) {
-          const base = tileColor(look, b.palette, bs, fi, i, j, f.top, b.mossScale ?? 1);
-          const corner = (a: number, c: number): { p: V3; col: V3 } => {
-            const p: V3 = [f.origin[0] + f.u[0] * a * du + f.v[0] * c * dv, f.origin[1] + f.u[1] * a * du + f.v[1] * c * dv, f.origin[2] + f.u[2] * a * du + f.v[2] * c * dv];
-            const k = side ? sideShade(p[1] - baseY, look) : 1;
-            return { p, col: [base[0] * k, base[1] * k, base[2] * k] };
-          };
-          const c00 = corner(i, j), c10 = corner(i + 1, j), c11 = corner(i + 1, j + 1), c01 = corner(i, j + 1);
-          for (const t of [[c00, c10, c11], [c00, c11, c01]]) {
-            for (const v of t) {
-              positions[o] = v.p[0]; positions[o + 1] = v.p[1]; positions[o + 2] = v.p[2];
-              normals[o] = f.n[0]; normals[o + 1] = f.n[1]; normals[o + 2] = f.n[2];
-              colors[o] = v.col[0]; colors[o + 1] = v.col[1]; colors[o + 2] = v.col[2];
-              o += 3;
-            }
-          }
-        }
-      }
+      const cell = Math.min(f.uLen / nu, f.vLen / nv);
+      emitFacets({
+        origin: f.origin, u: f.u, v: f.v, uLen: f.uLen, vLen: f.vLen, nu, nv, n: f.n, seed: bs + fi,
+        colorAt: (i, j) => tileColor(look, b.palette, bs, fi, i, j, f.top, b.mossScale ?? 1),
+        vertexMul: side ? (p) => sideShade(p[1] - baseY, look) : undefined,
+        jitter: facet.jitter, triShade: facet.triShade,
+        bump: side ? { mode: 'in', amp: () => cell * facet.sideIn } : undefined,
+      }, out);
     });
   }
-  return { positions, normals, colors };
+  return { positions: new Float32Array(out.pos), normals: new Float32Array(out.nor), colors: new Float32Array(out.col) };
 }

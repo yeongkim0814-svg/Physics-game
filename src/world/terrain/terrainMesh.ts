@@ -1,8 +1,10 @@
 // 하이트필드 격자 → 메시. 같은 높이의 칸은 그리디로 큰 사각형으로 합치고(윗면), 높이 차가 나는 칸 경계마다 수직 절벽 벽을 만든다
 // (높은 쪽 칸이 낮은 쪽을 향해 벽을 그린다 → 근거리/원거리 LOD 경계도 같은 규칙으로 균열 없이 이어진다). 보이지 않는 아래면은 만들지 않는다.
-// 렌더 메시는 사각형을 타일로 쪼개 정점색 모자이크(blockTerrain 의 tileColor·sideShade 재사용), 충돌 메시는 합친 사각형 그대로(삼각형 최소).
+// 렌더 메시는 사각형을 격자로 쪼개 불규칙한 삼각형 패싯으로(world/facet.ts: 안쪽 정점 흔들림·절벽은 안쪽으로 패임·걸을 수 없는 윗면은 기복,
+// 색은 삼각형마다 blockTerrain 의 tileColor·sideShade 재사용), 충돌 메시는 합친 사각형 그대로(삼각형 최소, 걸을 수 있는 윗면은 렌더도 평평).
 // 순수 계산 (THREE/Rapier 의존 없음).
-import { hash3, sideShade, tileColor, tileCount, type MeshData, type PaletteKey, type TerrainLook, type V3 } from '../blockTerrain';
+import { hash3, sideShade, tileColor, type MeshData, type PaletteKey, type TerrainLook, type V3 } from '../blockTerrain';
+import { emitFacets, FACET_DEFAULT, splitCount, type FacetLook } from '../facet';
 import { TerrainField, type HeightGrid } from './terrainField';
 
 /** 윗면 사각형: [x0,x1]×[z0,z1], 높이 level(fineStep 단위) */
@@ -108,6 +110,10 @@ export interface TerrainMeshOpts {
   tile: { top: number; wall: number; max: number; r0: number; grow: number };
   maxTiles: number;
   topPalette: readonly { minY: number; palette: PaletteKey }[];
+  /** 삼각 분할 외형 (없으면 FACET_DEFAULT) */
+  facet?: FacetLook;
+  /** 이 반폭(m) 안쪽 윗면은 충돌과 같게 평평하게 둔다 (기본 0 = 모두 기복 허용) */
+  walkHalf?: number;
 }
 
 const unpack = (hex: number): V3 => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
@@ -134,32 +140,12 @@ export function topPaletteAt(y: number, list: TerrainMeshOpts['topPalette']): Pa
   return list[list.length - 1].palette;
 }
 
-/** 근거리·원거리 모든 사각형을 정점색 모자이크 비색인 삼각형 메시로 (렌더용) */
+/** 근거리·원거리 모든 사각형을 정점색 삼각형 패싯 비색인 메시로 (렌더용) */
 export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: TerrainTint, o: TerrainMeshOpts): MeshData {
   const q = collectQuads(field, Infinity, true);
   const fs = field.P.fineStep;
-  const pos: number[] = [], nor: number[] = [], col: number[] = [];
-  const pushTri = (p: V3[], n: V3, c: V3[]) => {
-    for (let i = 0; i < 3; i++) { pos.push(p[i][0], p[i][1], p[i][2]); nor.push(n[0], n[1], n[2]); col.push(c[i][0], c[i][1], c[i][2]); }
-  };
-  /** origin 에서 u(길이 uLen)·v(길이 vLen) 로 뻗은 사각형을 nu×nv 타일로. 타일마다 색 하나 (colorAt), 정점 보정은 vertexMul */
-  const emit = (origin: V3, u: V3, v: V3, uLen: number, vLen: number, nu: number, nv: number, n: V3,
-    colorAt: (i: number, j: number) => V3, vertexMul: (p: V3) => number) => {
-    const du = uLen / nu, dv = vLen / nv;
-    for (let j = 0; j < nv; j++) {
-      for (let i = 0; i < nu; i++) {
-        const base = colorAt(i, j);
-        const corner = (a: number, b: number) => {
-          const p: V3 = [origin[0] + u[0] * a * du + v[0] * b * dv, origin[1] + u[1] * a * du + v[1] * b * dv, origin[2] + u[2] * a * du + v[2] * b * dv];
-          const k = vertexMul(p);
-          return { p, c: [base[0] * k, base[1] * k, base[2] * k] as V3 };
-        };
-        const c00 = corner(i, j), c10 = corner(i + 1, j), c11 = corner(i + 1, j + 1), c01 = corner(i, j + 1);
-        pushTri([c00.p, c10.p, c11.p], n, [c00.c, c10.c, c11.c]);
-        pushTri([c00.p, c11.p, c01.p], n, [c00.c, c11.c, c01.c]);
-      }
-    }
-  };
+  const F = o.facet ?? FACET_DEFAULT, walkHalf = o.walkHalf ?? 0;
+  const out = { pos: [] as number[], nor: [] as number[], col: [] as number[] };
   const seedOf = (a: number, b: number, c: number) => Math.floor(hash3(Math.round(a * 4), Math.round(b), Math.round(c * 4), o.seed) * 2147483647);
 
   for (const t of q.tops) {
@@ -169,8 +155,16 @@ export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: T
     const tile = tileSizeAt(o.tile.top, rad, o.tile);
     const bs = seedOf(t.x0, t.level, t.z0);
     const moss = palette === 'earth' ? 0.5 : 0.15;
-    emit([t.x0, y, t.z1], [1, 0, 0], [0, 0, -1], w, d, tileCount(w, tile, o.maxTiles), tileCount(d, tile, o.maxTiles), [0, 1, 0],
-      (i, j) => tintColor(tileColor(look, palette, bs, 0, i, j, true, moss), y, rad, tint), () => 1);
+    const ms = rad <= F.range ? F.minSplitTop : Infinity;
+    const nu = splitCount(w, tile, o.maxTiles, ms), nv = splitCount(d, tile, o.maxTiles, ms);
+    const lift = Math.min(F.topLiftMax, F.topLift * Math.min(w / nu, d / nv));
+    emitFacets({
+      origin: [t.x0, y, t.z1], u: [1, 0, 0], v: [0, 0, -1], uLen: w, vLen: d, nu, nv, n: [0, 1, 0], seed: bs,
+      colorAt: (i, j) => tintColor(tileColor(look, palette, bs, 0, i, j, true, moss), y, rad, tint),
+      jitter: F.jitter, triShade: F.triShade,
+      // 걸을 수 있는 영역(외곽 벽 안쪽)은 충돌과 같게 평평, 바깥은 상하 기복으로 능선·언덕 패싯
+      bump: { mode: 'both', amp: (p0) => (Math.max(Math.abs(p0[0]), Math.abs(p0[2])) > walkHalf ? lift : 0) },
+    }, out);
   }
   for (const wl of q.walls) {
     const y0 = wl.yLow * fs, y1 = wl.yHigh * fs, len = wl.b - wl.a, hgt = y1 - y0;
@@ -182,11 +176,19 @@ export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: T
     const cxm = wl.axis === 'x' ? (wl.a + wl.b) / 2 : wl.fixed, czm = wl.axis === 'x' ? wl.fixed : (wl.a + wl.b) / 2;
     const rad = Math.hypot(cxm, czm);
     const tile = tileSizeAt(o.tile.wall, rad, o.tile);
-    emit(origin, u, [0, 1, 0], len, hgt, tileCount(len, tile, o.maxTiles), tileCount(hgt, tile, o.maxTiles), [wl.nx, 0, wl.nz],
-      (i, j) => { const c = tintColor(tileColor(look, 'cliff', bs, 2, i, j, false, 1), (y0 + y1) / 2, rad, tint); return [c[0] * tint.wall, c[1] * tint.wall, c[2] * tint.wall] as V3; },
-      (p) => sideShade(p[1] - y0, look));
+    const ms = rad <= F.range ? F.minSplit : Infinity;
+    const nu = splitCount(len, tile, o.maxTiles, ms), nv = splitCount(hgt, tile, o.maxTiles, ms);
+    const cell = Math.min(len / nu, hgt / nv);
+    emitFacets({
+      origin, u, v: [0, 1, 0], uLen: len, vLen: hgt, nu, nv, n: [wl.nx, 0, wl.nz], seed: bs,
+      colorAt: (i, j) => { const c = tintColor(tileColor(look, 'cliff', bs, 2, i, j, false, 1), (y0 + y1) / 2, rad, tint); return [c[0] * tint.wall, c[1] * tint.wall, c[2] * tint.wall] as V3; },
+      vertexMul: (p) => sideShade(p[1] - y0, look),
+      jitter: F.jitter, triShade: F.triShade,
+      // 절벽면은 안쪽(낮은 쪽의 반대)으로만 패인다: 충돌 벽(수직)보다 바깥으로 나오지 않아 걷는 공간을 침범하지 않는다
+      bump: { mode: 'in', amp: () => cell * F.sideIn },
+    }, out);
   }
-  return { positions: new Float32Array(pos), normals: new Float32Array(nor), colors: new Float32Array(col) };
+  return { positions: new Float32Array(out.pos), normals: new Float32Array(out.nor), colors: new Float32Array(out.col) };
 }
 
 // ---------------------------------------------------------------------------------------------
