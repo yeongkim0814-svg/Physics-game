@@ -3,6 +3,7 @@
 // 데이터(MAP.terrain)로 지정되어 노이즈 위에 덮어쓴다. 시드 고정 결정적, THREE/Rapier 의존 없음 → 단위 테스트 대상.
 // 모든 높이는 fineStep(램프용 미세 단위, 자동 계단 한계 이하)의 정수배이고, 일반 지형은 stepH(층 높이)의 정수배다.
 import { clamp01, fbm01, lerp, ridged01, smoothstep, warp } from './noise';
+import { OuterLattice, type OuterParams } from './outerLattice';
 
 export interface TerrainPad {
   id: string; center: [number, number]; radius: number; y: number; blend: number; note?: string;
@@ -52,6 +53,8 @@ export interface TerrainParams {
    * margin(m) 떨어진 곳부터 blend(m) 에 걸쳐 서서히 켠다. clearHalf 밖(고원 가장자리)은 0. 렌더와 충돌이 같은 함수·같은 삼각형을 쓴다.
    */
   relief: { amp: number; scale: number; detailAmp: number; detailScale: number; ridgeAmp: number; ridgeScale: number; margin: number; blend: number; clearHalf: number };
+  /** 고원 바깥(시각 전용)을 계단형 칸이 아니라 연속 높이 함수에서 직접 만든 삼각 격자로 렌더한다 (world/terrain/outerLattice.ts) */
+  outer: OuterParams;
   /** 고원 바깥(걸을 수 없는 시각 전용 영역)의 연속 상하 변위: 모든 정점에 위치 함수로 더해 이웃 면과 균열 없이 이어진다. r0~r1 에서 서서히 켠다 */
   shift: { amp: number; scale: number; detailAmp: number; detailScale: number; r0: number; r1: number };
   lod: { nearHalf: number; nearCell: number; farHalf: number; farCell: number; farStepH: number; farRadius: number };
@@ -64,6 +67,8 @@ const NONE = -32768; // 격자에 값이 없는 칸 (원거리 격자의 근거�
 
 export class TerrainField {
   readonly near: HeightGrid;
+  /** 고원 바깥 연속 삼각 격자 (렌더 전용, groundY 가 같은 삼각형 위 높이를 돌려준다) */
+  readonly outer: OuterLattice;
   /** 근거리 격자 칸 중심에서 가장 가까운 '굴곡 금지' 칸까지 거리(m). 굴곡 마스크의 근원 */
   private reliefDist: Float32Array;
   /** 1 이면 이 근거리 칸은 굴곡 칸(렌더·충돌 모두 삼각형 격자로 만든다) */
@@ -81,6 +86,7 @@ export class TerrainField {
     this.reliefDist = rl.dist;
     this.reliefCell = new Uint8Array(this.near.n * this.near.n);
     this.markReliefCells();
+    this.outer = new OuterLattice(this, P.outer);
     this.buildMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
   }
 
@@ -172,6 +178,8 @@ export class TerrainField {
 
   /** 실제 보이는/밟는 지면 높이(m) = 계단형 윗면 + 고원 굴곡 + 바깥 변위. 장식·기술 모듈 배치용 (충돌 메시와 같다) */
   groundY(x: number, z: number): number {
+    // 고원 바깥은 연속 삼각 격자: 렌더되는 같은 삼각형 위 높이
+    if (Math.max(Math.abs(x), Math.abs(z)) >= this.P.outer.seam) { const h = this.outer.heightAt(x, z); if (h !== null) return h; }
     const s = this.surface(x, z);
     return s === -Infinity ? s : s + this.reliefAt(x, z) + this.outsideShift(x, z);
   }
@@ -287,10 +295,14 @@ export class TerrainField {
     let h = Math.round(this.continuous(x, z) / sH) * sH;
     const rp = this.ramp(x, z);
     if (rp !== null) h = rp;
-    const c = this.M.canyon, zc = (c.zMin + c.zMax) / 2, hw = (c.zMax - c.zMin) / 2;
+    return this.carveCanyon(x, z, h);
+  }
+
+  /** 협곡(고원을 가로지르고 바깥으로 입을 벌린다)을 높이에 카빙한다 */
+  carveCanyon(x: number, z: number, h: number): number {
+    const P = this.P, c = this.M.canyon, zc = (c.zMin + c.zMax) / 2, hw = (c.zMax - c.zMin) / 2;
     const out = Math.max(0, Math.abs(x) - P.plateau.half);
-    if (out <= P.canyonMouth.length && Math.abs(z - zc) <= hw + out * P.canyonMouth.slope) h = Math.min(h, -c.depth);
-    return h;
+    return out <= P.canyonMouth.length && Math.abs(z - zc) <= hw + out * P.canyonMouth.slope ? Math.min(h, -c.depth) : h;
   }
 }
 

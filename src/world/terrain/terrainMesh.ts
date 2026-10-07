@@ -162,7 +162,8 @@ export function topPaletteAt(y: number, list: TerrainMeshOpts['topPalette']): Pa
 
 /** 근거리·원거리 모든 사각형을 정점색 삼각형 패싯 비색인 메시로 (렌더용) */
 export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: TerrainTint, o: TerrainMeshOpts): MeshData {
-  const q = collectQuads(field, Infinity, true);
+  // 이음새(seam) 안쪽만 계단형 사각 지형 — 바깥은 연속 삼각 격자(OuterLattice)가 맡는다
+  const q = collectQuads(field, field.P.outer.seam, false);
   const fs = field.P.fineStep;
   const F = o.facet ?? FACET_DEFAULT, walkHalf = o.walkHalf ?? 0;
   const out = { pos: [] as number[], nor: [] as number[], col: [] as number[] };
@@ -237,7 +238,7 @@ export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: T
       out.col.push(t[0] * shade, t[1] * shade, t[2] * shade);
     }
   });
-  // 고원 바깥: 위치 함수 변위를 모든 정점에 더한다 (같은 위치 = 같은 변위라 면 사이 균열이 없고 절벽 높이는 그대로 평행 이동). 법선 재계산
+  // 이음새 바깥 가장자리 근처 계단형 정점에도 같은 위치 변위를 더한다 (이음새 안쪽에서는 거의 0). 법선 재계산
   for (let i = 0; i < out.pos.length; i += 3) out.pos[i + 1] += field.outsideShift(out.pos[i], out.pos[i + 2]);
   for (let t = 0; t < out.pos.length; t += 9) {
     const ax = out.pos[t], ay = out.pos[t + 1], az = out.pos[t + 2];
@@ -247,7 +248,46 @@ export function buildTerrainMesh(field: TerrainField, look: TerrainLook, tint: T
     const sgn = nx * out.nor[t] + ny * out.nor[t + 1] + nz * out.nor[t + 2] < 0 ? -1 : 1; // 원래 바깥 방향 유지
     for (let k = 0; k < 3; k++) { out.nor[t + k * 3] = nx * sgn; out.nor[t + k * 3 + 1] = ny * sgn; out.nor[t + k * 3 + 2] = nz * sgn; }
   }
+  emitOuter(field, look, tint, o, F, out, calm, refOf);
   return { positions: new Float32Array(out.pos), normals: new Float32Array(out.nor), colors: new Float32Array(out.col) };
+}
+
+/**
+ * 고원 바깥 연속 삼각 격자를 메시에 추가한다. 색은 경사(법선 y)로 정한다: 완만하면 윗면 팔레트(높이별), 가파르면 절벽 팔레트 — 명암은 조명이 만든다.
+ * 이음새에는 안쪽 계단형 지형과의 틈을 덮는 가림막(안쪽을 향한 절벽색 판)을 둔다.
+ */
+function emitOuter(field: TerrainField, look: TerrainLook, tint: TerrainTint, o: TerrainMeshOpts, F: FacetLook,
+  out: { pos: number[]; nor: number[]; col: number[] }, calm: (c: V3, ref: V3) => V3, refOf: (p: PaletteKey, top: boolean) => V3) {
+  field.outer.forEachTriangle((a, b, c, ix, iz, ring) => {
+    let nx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]), ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]), nz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    const flip = ny < 0;
+    if (flip) { nx = -nx; ny = -ny; nz = -nz; }
+    const len = Math.hypot(nx, ny, nz) || 1; nx /= len; ny /= len; nz /= len;
+    const yAvg = (a[1] + b[1] + c[1]) / 3, rad = Math.hypot((a[0] + b[0] + c[0]) / 3, (a[2] + b[2] + c[2]) / 3);
+    const cs = ring === 0 ? 1 : 3; // 변화 칸 크기: 거친 격자는 더 크게
+    const palette = topPaletteAt(yAvg, o.topPalette);
+    const top = calm(tileColor(look, palette, o.seed, 0, ix >> cs, iz >> cs, true, 0.15), refOf(palette, true));
+    const cliff = calm(tileColor(look, 'cliff', o.seed, 2, ix >> cs, iz >> cs, false, 1), refOf('cliff', false));
+    const t = sstep(0.55, 0.86, ny);
+    const base = mixv([cliff[0] * tint.wall, cliff[1] * tint.wall, cliff[2] * tint.wall], top, t);
+    const col = tintColor(base, yAvg, rad, tint);
+    const shade = 1 + (hash3(ix, iz, ring + 11, o.seed) - 0.5) * 2 * F.triShade;
+    for (const p of flip ? [a, c, b] : [a, b, c]) {
+      out.pos.push(p[0], p[1], p[2]); out.nor.push(nx, ny, nz); out.col.push(col[0] * shade, col[1] * shade, col[2] * shade);
+    }
+  });
+  // 이음새 가림막: 윗변 = 격자 이음새 변, 아래 = 깊은 곳. 안쪽(+고원 쪽)을 향한다. 안쪽 지형 벽과 겹치지 않게 0.05m 바깥에 둔다
+  const DEEP = -90, cliffC = tintColor(calm(tileColor(look, 'cliff', o.seed, 2, 0, 0, false, 1), refOf('cliff', false)), -30, 0, tint);
+  field.outer.forEachSeamSegment((p0, p1, nx, nz) => {
+    const off = (p: V3): V3 => [p[0] - nx * 0.05, p[1], p[2] - nz * 0.05];
+    const a = off(p0), b = off(p1), c: V3 = [b[0], DEEP, b[2]], d: V3 = [a[0], DEEP, a[2]];
+    for (const tri of [[a, b, c], [a, c, d]] as V3[][]) {
+      const ux = tri[1][0] - tri[0][0], uy = tri[1][1] - tri[0][1], uz = tri[1][2] - tri[0][2], vx = tri[2][0] - tri[0][0], vy = tri[2][1] - tri[0][1], vz = tri[2][2] - tri[0][2];
+      const cx = uy * vz - uz * vy, cz = ux * vy - uy * vx;
+      const ordered = cx * nx + cz * nz >= 0 ? tri : [tri[0], tri[2], tri[1]];
+      for (const p of ordered) { out.pos.push(p[0], p[1], p[2]); out.nor.push(nx, 0, nz); out.col.push(cliffC[0], cliffC[1], cliffC[2]); }
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------------------------

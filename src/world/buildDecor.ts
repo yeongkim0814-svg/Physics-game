@@ -31,6 +31,12 @@ const lerpColor = (a: number, b: number, t: number) => new THREE.Color(a).lerp(n
 
 /** 점 (x,z) 가 평평한 칸 안쪽인가: 주변 r m 4방향이 같은 높이 (절벽 모서리·벽 위에 장식이 걸치지 않게) */
 export function isFlatSpot(field: TerrainField, x: number, z: number, r: number) {
+  // 고원 바깥은 연속 삼각 격자라 계단 칸 비교가 의미 없다: 실제 지면 경사로 판정 (반경 r 안 네 방향 기울기 ≤ 0.35)
+  if (Math.max(Math.abs(x), Math.abs(z)) >= field.P.outer.seam - r) {
+    const h0 = field.groundY(x, z);
+    if (!Number.isFinite(h0)) return false;
+    return [[r, 0], [-r, 0], [0, r], [0, -r]].every(([dx, dz]) => Math.abs(field.groundY(x + dx, z + dz) - h0) <= r * 0.35);
+  }
   const h = field.levelAt(x, z);
   if (h === null) return false;
   return [[r, 0], [-r, 0], [0, r], [0, -r]].every(([dx, dz]) => field.levelAt(x + dx, z + dz) === h);

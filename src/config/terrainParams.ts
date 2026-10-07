@@ -17,6 +17,8 @@ export const TERRAIN_FIELD: TerrainParams = {
   // 근거리 = 고해상도(셀 2m, 플레이 영역+고원 가장자리·절벽), 원거리 = 저해상도 링(셀 24m, 카메라 far 500 너머까지). nearHalf 는 farCell·nearCell 의 배수
   // 굴곡: 고원 위 완만한 언덕(λ≈44m) + 암반 결(λ≈11m): 실제 범위 약 -2.0~+1.6m, 최대 경사 ≈ 0.37 (< 자동 오르기 한계 45°)
   relief: { amp: 4.5, scale: 44, detailAmp: 0.9, detailScale: 11, ridgeAmp: 0.8, ridgeScale: 28, margin: 2, blend: 7, clearHalf: 74 },
+  // 고원 바깥 연속 삼각 격자: 이음새 84m(충돌 벽 80.5m 바로 뒤) 바깥은 6m 격자(240m 까지) + 24m 격자(528m 까지). 계단형 → 연속 높이 전환 24m
+  outer: { seam: 84, fineCell: 6, fineHalf: 240, coarseCell: 24, coarseHalf: 528, radius: 520, blend: 24 },
   // 고원 바깥 출렁임: 계곡·메사·산맥 전체가 ±7m 로 부드럽게 오르내린다 (층 단차와 절벽 높이는 그대로)
   shift: { amp: 8, scale: 100, detailAmp: 5.5, detailScale: 30, r0: 86, r1: 125 },
   lod: { nearHalf: 120, nearCell: 2, farHalf: 528, farCell: 24, farStepH: 9, farRadius: 520 },
