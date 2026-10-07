@@ -1,46 +1,7 @@
-// 시스템 간 계약(contract). 시스템 간 계약.
+// 시스템 간 계약(contract).
 import type * as THREE from 'three';
 
-export type SlotKind = 'front' | 'rear' | 'top' | 'sub';
-export type BaseId = 'momentum_launcher' | 'em_coil';
 export type MobKind = 'metal' | 'insulator' | 'normal';
-
-/** 모든 수치 보정은 스탯 키-값으로 합산된다. 키 목록은 data/bases.ts 참고. 'Mul' 로 끝나는 키는 기본값 1, 나머지는 0. */
-export type StatMods = Partial<Record<string, number>>;
-
-export interface PartDef {
-  id: string;
-  name: string;
-  slot: SlotKind;
-  /** 호환 베이스. 생략 시 공통 */
-  base?: BaseId;
-  /** 가산(add) / 승수(mul) 효과. 예: { recoilMul: 0.6 } */
-  effects: { add?: StatMods; mul?: StatMods };
-  durable: boolean;
-  maxDurability?: number;
-  /** 사용 부하당 마모량 배율 */
-  wearRate?: number;
-}
-
-export interface BaseDef {
-  id: BaseId;
-  name: string;
-  maxDurability: number;
-  stats: Record<string, number>;
-}
-
-export interface Loadout {
-  base: BaseId;
-  parts: Partial<Record<SlotKind, string>>; // slot -> partId
-}
-
-/** 무기 런타임 인스턴스: 내구도는 개별 추적 */
-export interface WeaponState {
-  loadout: Loadout;
-  baseDurability: number;
-  partDurability: Record<string, number>; // partId -> 현재 내구도
-  charge: number; // 0..1 (코일)
-}
 
 /** 플레이어/몹/구조물이 전기·피해를 받는 공통 인터페이스 */
 export interface Damageable {
@@ -67,21 +28,6 @@ export interface ImpulseTarget {
   applyImpulse(impulse: THREE.Vector3): void;
 }
 
-/** 보관/소지 중인 무기: 장착 구성 + 내구도 (레이드 간 유지) */
-export interface StoredWeapon {
-  loadout: Loadout;
-  baseDurability: number;
-  partDurability: Record<string, number>;
-}
-
-/** 영속 데이터. stash=안전 보관함(사망해도 유지), carried=소지품(레이드 중에만 존재, 사망 시 손실) */
-export interface Persistent {
-  stash: { weapons: StoredWeapon[]; materials: Record<string, number> };
-  carried: { weapons: StoredWeapon[]; materials: Record<string, number> };
-}
-
-export type RaidResult = 'extracted' | 'dead';
-
 export interface MobDef {
   id: MobKind;
   name: string;
@@ -93,15 +39,33 @@ export interface MobDef {
   conducts: boolean;
   /** 받는 피해 배율 */
   damageMul: Record<'physical' | 'electric', number>;
-  /** 사망 시 드롭 {재료: [최소, 최대]} */
-  drop: Record<string, [number, number]>;
 }
 
-/** 사출기가 소모하는 재료(덩어리). 질량이 클수록 위력·반동이 크다 */
-export interface MaterialDef {
-  id: string;
-  name: string;
-  /** 덩어리 1개 질량 (kg) */
-  mass: number;
-  color: number;
+/** 발사/던지기 한 번의 결과: 캐릭터 총구(손) 위치에서 화면 중앙 조준점 방향 */
+export interface AimSolution {
+  /** 발사 위치(월드) */
+  origin: THREE.Vector3;
+  /** 발사 방향(단위). 반동은 이것의 반대로 가해진다 */
+  dir: THREE.Vector3;
+  /** 화면 중앙 조준선이 닿은 점 (아무것도 없으면 최대 사거리의 먼 점) */
+  target: THREE.Vector3;
+}
+
+/** 무기가 쓰는 조준 계약: 캐릭터 총구에서 조준점 방향. 구현은 player/PlayerAvatar */
+export interface AimSource {
+  muzzleAim(): AimSolution;
+}
+
+/** 돌을 던지는 쪽(플레이어)이 제공하는 최소 정보: 손 위치에서 조준점 방향 + 승계할 속도 */
+export interface ThrowSource {
+  handAim(): AimSolution;
+  readonly velocity: THREE.Vector3;
+}
+
+/** 무기가 캐릭터에게 보내는 시각 피드백 (반동 킥, 충전 발광) */
+export interface WeaponFeedback {
+  /** strength: 0~1 정도의 정규화된 반동 세기 */
+  kick(strength: number): void;
+  /** 0..1 충전 발광 */
+  setGlow(v: number): void;
 }

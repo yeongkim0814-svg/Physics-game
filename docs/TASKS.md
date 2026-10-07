@@ -1,5 +1,7 @@
 # 작업 보드  (상태: todo / doing / review / done)
 
+> ⚠ 폐기된 익스트랙션 설계(보관용). 현행 설계: /GAME_DESIGN.md
+
 | ID | 모델 | 내용 | 의존 | 상태 |
 |---|---|---|---|---|
 | T0 | Sonnet | 환경·뼈대 | - | done |
@@ -16,3 +18,36 @@
 | T10 | Sonnet+Opus | 튜닝 패스(반동 감 최우선), README: 튜닝 수치·한계 | all | todo |
 
 모델 선택 기준은 `docs/WORKFLOW.md`. 순서: T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8 → T9 → T10.
+
+## 2단계: 아지트(허브) + 격자 인벤토리 + 연구 루프 (폐기, 코드 제거됨)
+| ID | 내용 | 상태 |
+|---|---|---|
+| P2-1 | 데이터 모델(아이템·노드·레시피·개량·방어구) + 격자 인벤토리 로직/UI(`inventory/`) + 단독 테스트 `?dev=grid` | done |
+| P2-2 | 허브 셸(하단 탭) + 화면 7개 + 입고 선택, 저장(localStorage v2) | done |
+| P2-3 | 레이드 연결: 출격 → 가방/무기/방어구, 탈출 입고·사망 손실·안전 보관함, 레이드 중 BAG 화면, 맵에 샘플·연구 재료 | done |
+
+## 새 설계 마일스톤
+| 마일스톤 | 내용 | 상태 |
+|---|---|---|
+| M0 | 폐기 코드 제거 | done |
+| M1 | 수직 슬라이스: 말라붙은 해안 도시 일부 + 반동 도구 + 쌍둥이 낙하 실험 + 증거 카드·제출 UI + 저장 지점/HP/스태미너 | doing |
+| M1(a) | 해안 도시 지형(탑·협곡·폐허·원경 랜드마크) + 석양 팔레트 + 돌 던지기 실험 환경(`world/Throwables.ts`, `onLanded` 이벤트) | done |
+| M1e | 3인칭 전환: 어깨 너머 카메라(충돌), 총구→조준점 발사, 교체 가능한 CharacterModel(placeholder), 참고 이미지 색감·질감(하늘 돔·벽돌/구리/모래 텍스처·조명) | done |
+| M1f | 주인공 모델: `CharacterModel` 구현체(`protagonistCharacter`, 데이터 `data/protagonist.ts`) — 안경 쓴 전직 과학자, 구부정한 탐험가 자세, 걷기/공중/조준/반동/숨쉬기. placeholder 는 폴백 유지 | done |
+| M1g | 비주얼 전환(BotW풍 로우폴리): `VISUAL.style` 프리셋(기본 lowpoly), 재질 팩토리 `createMaterial`, 낮 하늘 돔·해·구름, 플랫 셰이딩+정점색, 네이티브 해상도 파이프라인(+선택 외곽선), 탈색 파라미터(재질/지역), 장식·블롭 그림자 | done |
+| M1h | 주인공 재제작(일러스트 기준): 날씬한 7.4등신 로프트 로우폴리(≈1,900 tri)·정점 AO·천 텍스처·림 라이트, 얼굴 텍스처(일러스트 크롭, 정면 투영), 태블릿형 휴대 장치, 발 접지 보정, 재질 selfGlow/rim 옵션 | done |
+| M1i | 황혼 블록 비주얼+원경 백드롭: `timeOfDay` 프리셋(dusk 기본/day 보관), 블록 지형 모자이크 빌더·계단식 단차·메사·협곡 돌출, 생성 백드롭 파노라마(`scripts/make_backdrop.py`), 탑 빛기둥·청록 창문·떠 있는 파편·높이 안개 면, 캐릭터 조명 재조정 | done |
+| M1j | 주인공 복셀 카빙: 사용자 도면(정면·측면·후면)을 `scripts/carve_character.py` 로 부위별 슈퍼엘립스 카빙·투영 색칠·팔레트 양자화 → `protagonist_voxels.json`, 런타임 그리디 메싱(≈5,800 tri, 19 메시)·복셀 AO·부위 그룹(머리/몸통/골반/팔/다리/부츠/앞뒤 자락/천 자락/발광 장치) 절차 애니메이션. 기존 M1h 모델은 `?char=legacy` 폴백으로 유지 | done |
+| A1 | 아트 Phase 1 Rendering Prototype (`OPEN_WORLD_ART_DIRECTION.md` §24) — M1g·M1i 로 충족 | done |
+| A2 | 아트 Phase 2 Terrain: 계단형 하이트필드 지형(절벽·계곡), 셰이더 높이 안개, 3D 원경 산, 게임플레이 구조 유지 (`docs/TERRAIN.md`). 남은 것: 목표 이미지급 디테일(아치·폭포·건축물, Phase 4·5), 고원 안 기복 | done |
+| G0 | 그래픽 기준 v2 확정(문서): 키워드 11항목 현황·결정(G1~G11), 색 역할표, C8 완화 — `OPEN_WORLD_ART_DIRECTION.md` §0 | done |
+| G3 | 저해상도 절차 텍스처(`render/texKit.ts` 아틀라스, `createMaterial` `tex` 옵션: 월드 좌표 트리플래너·Nearest·원거리 페이드) | done |
+| G9 | 청록 발광 기술(회로선 발광 마스크 = 장식 정적, 전도체 맥동, 수치 `VISUAL.lowpoly.tech`) | done |
+| G5 | 모듈 키트 부분(`world/techModules.ts` 기둥·아치·벽·링, 고원 바깥 시각 전용). 건축 확장은 A4 | doing |
+| A3 | 아트 Phase 3 World Streaming (C5: 맵이 3×3 청크를 넘을 때) | todo |
+| A4~A8 | 아트 Phase 4 Environment · 5 Landmark · 6 Character 보강 · 7 Interaction · 8 Final Art Pass (C10: M2 통과 후 4 착수) | todo |
+| M1(b) | todo | todo |
+| M1(c) | 증거 카드(onLanded 기록 → 카드) | todo |
+| M1(d) | todo | todo |
+| M2 | 1~3단계 재미 검증 (낙하·관성·반작용) | todo |
+| M3 | 2~3막 확장 (4~8단계, 환경·NPC·기억 장면) | todo |

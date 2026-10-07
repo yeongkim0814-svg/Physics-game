@@ -4,17 +4,15 @@ import type { Conductor, Damageable } from '../core/types';
 import type { MobSpawnDef } from '../data/map';
 import { MOBS } from '../data/mobs';
 import type { PlayerController } from '../player/PlayerController';
-import type { Loot } from '../world/Loot';
 import { Mob } from './Mob';
-import { rollDrop } from './mobMath';
 
-/** 몹 생성/갱신/사망 처리(전리품 드롭). 몹 수 상한은 PERF.mobCap */
+/** 몹 생성/갱신/사망 처리(처치 수 집계). 몹 수 상한은 PERF.mobCap */
 export class MobManager {
   readonly mobs: Mob[] = [];
   private controller: RAPIER.KinematicCharacterController;
   kills = 0;
 
-  constructor(scene: THREE.Scene, world: RAPIER.World, private loot: Loot, spawns: MobSpawnDef[], cap: number) {
+  constructor(scene: THREE.Scene, world: RAPIER.World, spawns: MobSpawnDef[], cap: number) {
     this.controller = world.createCharacterController(0.01);
     this.controller.setUp({ x: 0, y: 1, z: 0 });
     this.controller.setMaxSlopeClimbAngle(Math.PI / 4);
@@ -33,9 +31,7 @@ export class MobManager {
     for (const m of this.mobs) m.update(dt, player, this.mobs);
   }
 
-  private onDeath(m: Mob) {
+  private onDeath(_m: Mob) {
     this.kills++;
-    const drop = rollDrop(m.def.drop, Math.random);
-    if (Object.keys(drop).length) this.loot.spawn([m.feet.x, m.feet.y, m.feet.z], drop);
   }
 }

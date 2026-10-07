@@ -6,7 +6,6 @@ import {
   currentSpread,
   heatAfterShot,
   decayHeat,
-  rearWear,
   segmentSphereToi,
 } from './launcherMath';
 
@@ -157,35 +156,6 @@ describe('launcherMath', () => {
     it('음수 recoverPerSec (비정상 입력)', () => {
       // 음수 recoverPerSec는 열이 증가 (테스트만, 정상 동작)
       expect(decayHeat(0.5, -0.1, 1.0)).toBeCloseTo(0.6);
-    });
-  });
-
-  describe('rearWear', () => {
-    it('후방 슬롯 마모 계산', () => {
-      // wear = impulse × wearPerRecoil × wearRate
-      expect(rearWear(100, 0.01, 1.0)).toBe(1.0);
-    });
-
-    it('임펄스 2배 → 마모 2배 (선형)', () => {
-      const small = rearWear(100, 0.01, 1.0);
-      const large = rearWear(200, 0.01, 1.0);
-      expect(large).toBe(small * 2);
-    });
-
-    it('wearRate 0 → 마모 없음', () => {
-      expect(rearWear(1000, 0.01, 0)).toBe(0);
-    });
-
-    it('wearRate 높을수록 빨리 마모', () => {
-      const slow = rearWear(100, 0.01, 0.5);
-      const fast = rearWear(100, 0.01, 1.0);
-      expect(fast).toBe(slow * 2);
-    });
-
-    it('wearPerRecoil에 비례', () => {
-      const small = rearWear(100, 0.01, 1.0);
-      const large = rearWear(100, 0.02, 1.0);
-      expect(large).toBe(small * 2);
     });
   });
 

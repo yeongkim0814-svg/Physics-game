@@ -13,7 +13,7 @@ export const IDLE_INPUT: PlayerInput = { moveX: 0, moveY: 0, lookDX: 0, lookDY: 
 
 /**
  * 통합 입력. 데스크톱(WASD + 마우스 PointerLock)과 터치를 합쳐 같은 폴링 API 로 제공한다.
- * 게임 코드는 키/터치를 직접 보지 말고 moveX/moveY, lookDX/DY, fire*, jumpPressed, sprint, interactPressed 만 쓴다.
+ * 게임 코드는 키/터치를 직접 보지 말고 moveX/moveY, lookDX/DY, fire*, jumpPressed, sprint, throwPressed, throwHeavyPressed 만 쓴다.
  */
 export class Input {
   readonly touch: TouchControls;
@@ -63,8 +63,12 @@ export class Input {
   get jumpPressed() { return this.pressed.has('Space') || this.touch.jumpPressed; }
   /** 데스크톱: Shift 를 누르는 동안 / 터치: 조이스틱 y 가 start 이상이거나 자동 전력질주 중 */
   get sprint() { return this.key('ShiftLeft') + this.key('ShiftRight') > 0 || this.touch.sprinting; }
-  get swapPressed() { return this.pressed.has('KeyQ') || this.touch.swapPressed; }
-  get interactPressed() { return this.pressed.has('KeyE'); }
+  /** 가벼운 돌 던지기 (데스크톱 Q / 터치 THROW) */
+  get throwPressed() { return this.pressed.has('KeyQ') || this.touch.throwPressed; }
+  /** 무거운 돌 던지기 (데스크톱 E / 터치 THROW2) */
+  get throwHeavyPressed() { return this.pressed.has('KeyE') || this.touch.throwHeavyPressed; }
+  /** 무기 전환 (데스크톱 F / 터치 WPN) */
+  get weaponPressed() { return this.pressed.has('KeyF') || this.touch.weaponPressed; }
   /** 디버그/토글용 키 */
   justPressed(code: string) { return this.pressed.has(code); }
 

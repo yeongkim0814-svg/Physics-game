@@ -1,3 +1,3 @@
-import { startRaid } from './raid/RaidLoop';
+import { startGame } from './game/GameLoop';
 
-startRaid(document.getElementById('app')!);
+startGame(document.getElementById('app')!);
